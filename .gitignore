@@ -1,0 +1,41 @@
+# Ignore temporary files created by the acronym processor
+sorted_output_temp.csv
+*_temp.csv
+
+# More comprehensive patterns to ignore other temporary files
+# that might be created during processing
+**/temp_*.csv
+**/*_temp.*
+
+# Python-related files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# Output files (uncomment if you want to ignore all output files)
+# sorted_output_*.csv
+
+# Log files
+*.log
