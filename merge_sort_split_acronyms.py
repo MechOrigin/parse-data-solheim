@@ -111,73 +111,67 @@ def split_dataframe(df, output_prefix, max_size_mb):
     grouped = df.groupby('Acronym', as_index=False)
     
     # Initialize variables
-    current_file_df = pd.DataFrame(columns=df.columns)
+    current_chunks = []
     file_number = 1
     output_files = []
     current_size_estimate = 0
-    temp_file = f"{output_prefix}_temp.csv"
+    
+    # Estimate bytes per row based on a sample
+    sample_size = min(1000, len(df))
+    bytes_per_row = len(df.iloc[:sample_size].to_csv(index=False).encode('utf-8')) / sample_size
     
     print(f"Splitting data into files with maximum size of {max_size_mb} MB...")
     
-    # Function to save the current dataframe to a file
-    def save_current_file():
-        nonlocal file_number, current_file_df, output_files
-        
-        if len(current_file_df) == 0:
+    def save_chunks_to_file(chunks):
+        nonlocal file_number, output_files
+        if not chunks:
             return
             
         output_file = f"{output_prefix}_{file_number}.csv"
-        current_file_df.to_csv(output_file, index=False)
+        combined_df = pd.concat(chunks, ignore_index=True)
+        combined_df.to_csv(output_file, index=False)
         
-        # Get actual file size
         actual_size = get_file_size_mb(output_file)
-        
-        print(f"  - {output_file}: {len(current_file_df)} rows, {actual_size:.2f} MB")
+        print(f"  - {output_file}: {len(combined_df)} rows, {actual_size:.2f} MB")
         output_files.append(output_file)
-        
-        # Reset for next file
-        current_file_df = pd.DataFrame(columns=df.columns)
         file_number += 1
     
     # Process each acronym group
     for acronym, group in grouped:
-        # Write current group to a temp file to get its size
-        group.to_csv(temp_file, index=False)
-        group_size = get_file_size_mb(temp_file)
+        # Estimate group size in MB
+        group_size_estimate = (len(group) * bytes_per_row) / (1024 * 1024)
         
-        # If this group alone exceeds max_size_mb, we need to split it further
-        if group_size > max_size_mb:
-            print(f"Warning: Acronym '{acronym}' group is {group_size:.2f} MB, which exceeds the maximum file size.")
+        # If this group alone exceeds max_size_mb, split it
+        if group_size_estimate > max_size_mb:
+            # Save any accumulated chunks first
+            if current_chunks:
+                save_chunks_to_file(current_chunks)
+                current_chunks = []
+                current_size_estimate = 0
+            
+            print(f"Warning: Acronym '{acronym}' group is approximately {group_size_estimate:.2f} MB, exceeding the maximum file size.")
             print(f"This group will be split, breaking the requirement to keep identical acronyms together.")
             
-            # Save any accumulated data first
-            if len(current_file_df) > 0:
-                save_current_file()
-            
             # Split this large group into chunks
-            rows_per_file = int(len(group) * (max_size_mb / group_size))
+            rows_per_file = int(len(group) * (max_size_mb / group_size_estimate))
             for i in range(0, len(group), rows_per_file):
-                current_file_df = group.iloc[i:i+rows_per_file].copy()
-                save_current_file()
+                chunk = group.iloc[i:i+rows_per_file].copy()
+                save_chunks_to_file([chunk])
                 
-        # If adding this group would exceed max_size_mb, save current file and start a new one
-        elif current_size_estimate + group_size > max_size_mb and len(current_file_df) > 0:
-            save_current_file()
-            current_file_df = group.copy()
-            current_size_estimate = group_size
+        # If adding this group would exceed max_size_mb, save current chunks and start new file
+        elif current_size_estimate + group_size_estimate > max_size_mb and current_chunks:
+            save_chunks_to_file(current_chunks)
+            current_chunks = [group]
+            current_size_estimate = group_size_estimate
             
-        # Otherwise, add this group to the current file
+        # Otherwise, add this group to current chunks
         else:
-            current_file_df = pd.concat([current_file_df, group], ignore_index=True)
-            current_size_estimate += group_size
+            current_chunks.append(group)
+            current_size_estimate += group_size_estimate
     
-    # Save the last file if there's data remaining
-    if len(current_file_df) > 0:
-        save_current_file()
-    
-    # Clean up temp file
-    if os.path.exists(temp_file):
-        os.remove(temp_file)
+    # Save any remaining chunks
+    if current_chunks:
+        save_chunks_to_file(current_chunks)
     
     return output_files
 
