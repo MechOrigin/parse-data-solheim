@@ -1,0 +1,78 @@
+# Guide for Processing Grade 2 Acronyms
+
+## Overview
+
+This guide provides instructions for processing the 17,639 Grade 2 acronyms that need definitions, descriptions, and tags. I've provided 10 sample processed acronyms as examples of the correct format for your import file.
+
+## Recommended Approach
+
+1. **Divide and Conquer**: Since there are 17,639 acronyms to process, consider breaking them into manageable batches of 100-500 acronyms.
+
+2. **Research Sources**: Use reliable sources to research the accurate meanings of acronyms:
+   - Professional organization websites
+   - Academic databases
+   - Industry publications
+   - Government websites
+   - Specialized acronym dictionaries
+
+3. **Prioritize**: Start with the most common or widely used acronyms in each batch.
+
+4. **Field Guidelines**: Follow these guidelines for each field:
+
+   - **Definition**: The full expanded form of the acronym
+   - **Description**: A 1-3 sentence explanation of what the acronym represents, its purpose, and its significance
+   - **Tags**: 3-5 relevant keywords that categorize the acronym (e.g., Medical, Technology, Education)
+   - **Slug**: Format as `lowercase-acronym/lowercase-hyphenated-definition`
+   - **Status**: Set as "Approved" for all entries
+   - **Price (USD)**: Set as "$0" for all entries
+   - **Grade**: Keep as "2" for all entries
+   - **Custom Pricing**: Set as "No" for all entries
+   - **Suggested Category**: Add a single primary category that best represents the acronym
+
+5. **CSV Format**: Ensure your CSV file maintains the exact format shown in the examples, with all 20 columns present even if some are left empty.
+
+## Template CSV Structure
+
+Your CSV file should include these columns in this exact order:
+
+1. ID (leave blank, will be assigned by system)
+2. Acronym
+3. Definition
+4. Description
+5. Tags
+6. Usage Examples (can be left blank)
+7. Related Terms (can be left blank)
+8. Slug
+9. Meta Description (can be left blank)
+10. Views (set to "0")
+11. Status (set to "Approved")
+12. Price (USD) (set to "$0")
+13. Grade (set to "2")
+14. Custom Pricing (set to "No")
+15. Custom Pricing Data (leave blank)
+16. Category ID (leave blank)
+17. Suggested Category
+18. Submitted By (leave blank)
+19. Created At (current date in ISO format)
+20. Updated At (current date in ISO format)
+
+## Import Tips
+
+1. **Validate CSV**: Before importing, validate your CSV file to ensure all formatting is correct and there are no encoding issues.
+
+2. **Batch Processing**: Import in batches of 1,000 or fewer to avoid overwhelming the system.
+
+3. **Backup**: Keep a backup of the original data and your processed files.
+
+4. **Post-Import Verification**: After importing, verify a random sample of entries to ensure they appear correctly in your system.
+
+## Example of Properly Formatted Entries
+
+Here's an example of how your CSV entries should look (showing only key fields for clarity):
+
+```
+Acronym,Definition,Description,Tags,Status,Grade,Slug
+AAAME,Asian American Association of Medical Educators,"A professional organization dedicated to promoting diversity and cultural competence in medical education...","Medical, Education, Professional Organization, Asian American",Approved,2,aaame/asian-american-association-of-medical-educators
+```
+
+By following this guide and the provided examples, you'll be able to successfully process and import the Grade 2 acronyms into your system in the correct format.
