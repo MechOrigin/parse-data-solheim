@@ -1,155 +1,91 @@
-# Acronym Processing Toolkit
+# Acronym Processing Project
 
-A comprehensive suite of Python tools for processing, organizing, and managing acronym datasets.
+This project processes and analyzes acronyms from various data sources, including grading and sorting functionality.
 
-## Overview
+## Project Structure
 
-This toolkit allows you to:
-- **Parse** raw acronym data into a structured format
-- **Sort** acronyms and group duplicates together
-- **Merge** multiple files and split them into size-constrained chunks
-- **Analyze** acronym quality and consistency
-
-## 🔧 Requirements
-
-- Python 3.6+
-- pandas (`pip install pandas`)
-
-## 🚀 Quick Start
-
-### 1. Parse Raw Acronym Data
-
-Convert raw data into a structured format with defined fields:
-
-```bash
-python3 acronym_parser.py --input acronym-finder_1.csv --output my_acronyms.csv
+```
+/
+├── data/
+│   ├── raw/                 # Original input files
+│   ├── processed/           # Processed data files
+│   └── final/              # Final output files
+├── src/
+│   ├── processing/         # Data processing scripts
+│   ├── grading/           # Grading related scripts
+│   └── utils/             # Utility functions
+├── tests/                 # Test files
+├── docs/                  # Documentation
+└── output/                # Generated results
 ```
 
-This creates a CSV with standardized fields: Acronym, Definition, Description, Tags, and Grade.
+## Setup
 
-### 2. Sort Acronyms and Group Duplicates
-
-Organize your acronym file by sorting and performing advanced analysis:
-
+1. Create a virtual environment:
 ```bash
-python3 advanced_acronym_sorter.py --input my_acronyms.csv --output sorted_acronyms.csv --secondary-sort Grade --report --check-values
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-Options:
-- `--secondary-sort Grade`: Sort duplicates by their grade/importance
-- `--report`: Generate detailed acronym statistics
-- `--check-values`: Identify inconsistencies across duplicate acronyms
-
-### 3. Merge & Split for Large Datasets
-
-Combine multiple files, ensure duplicates are grouped, and split into manageable chunks:
-
+2. Install dependencies:
 ```bash
-python3 merge_sort_split_acronyms.py --input my_acronyms.csv my_acronyms-1.csv my_acronyms-2.csv my_acronyms-3.csv my_acronyms-4.csv my_acronyms-5.csv --output_prefix sorted_output --max_size 29
+pip3 install -r requirements.txt
 ```
 
-Features:
-- Merges multiple input files into one
-- Sorts to group identical acronyms together
-- Intelligently splits into multiple files with a maximum size (in MB)
-- Preserves all data with validation checks
+## Usage
 
-## 📊 Data Structure
+The project contains several main components:
 
-The toolkit works with CSV files containing the following fields:
+1. **Data Processing**
+   - Located in `src/processing/`
+   - Includes scripts for parsing, sorting, and merging acronyms
+   
+   ### Acronym Counter (`src/processing/acronym_counter.py`)
+   Counts acronyms based on various header parameters and generates statistics.
+   
+   Basic usage:
+   ```bash
+   # Generate summary statistics
+   python3 src/processing/acronym_counter.py data/raw/your_input_file.csv
+   
+   # Count by a specific column
+   python3 src/processing/acronym_counter.py data/raw/your_input_file.csv --column Grade
+   
+   # Count by multiple columns (cross-tabulation)
+   python3 src/processing/acronym_counter.py data/raw/your_input_file.csv --columns Grade Tags
+   
+   # Specify custom output location
+   python3 src/processing/acronym_counter.py data/raw/your_input_file.csv --output data/processed/custom_output.csv
+   ```
+   
+   Features:
+   - Summary statistics (total acronyms, unique acronyms, unique definitions, unique grades)
+   - Column-based counting
+   - Cross-tabulation by multiple columns
+   - Detailed logging
+   - Automatic output directory creation
 
-| Field       | Description                                              |
-|-------------|----------------------------------------------------------|
-| Acronym     | The abbreviation (e.g., "API")                           |
-| Definition  | The expanded form (e.g., "Application Programming Interface") |
-| Description | Detailed explanation of the acronym's meaning and usage  |
-| Tags        | Categories or domains relevant to the acronym            |
-| Grade       | Numeric value (1-5) indicating importance or relevance   |
+2. **Grading System**
+   - Located in `src/grading/`
+   - Handles acronym grading and evaluation
 
-## 📝 Detailed Usage
+3. **Utilities**
+   - Located in `src/utils/`
+   - Contains shared functionality and helper functions
 
-### Acronym Parser
+## Data Organization
 
-```bash
-python3 acronym_parser.py --input <raw_data.csv> --output <processed_data.csv>
-```
+- Raw data files are stored in `data/raw/`
+- Processed intermediate files are in `data/processed/`
+- Final output files are stored in `data/final/`
 
-The parser extracts acronyms from raw data and enriches them with definitions, descriptions, tags, and grades.
+## Contributing
 
-### Advanced Acronym Sorter
+1. Follow the existing code structure
+2. Use consistent naming conventions
+3. Add appropriate documentation
+4. Run tests before submitting changes
 
-```bash
-python3 advanced_acronym_sorter.py --input <input.csv> --output <output.csv> [options]
-```
+## License
 
-Options:
-- `--secondary-sort COLUMN`: Sort within each acronym group by this column
-- `--report`: Generate a detailed report of acronym statistics
-- `--report-file FILENAME`: Custom filename for the report (default: acronym_report.txt)
-- `--check-values`: Check for inconsistent definitions or descriptions
-
-### Merge-Sort-Split Tool
-
-```bash
-python3 merge_sort_split_acronyms.py --input <file1.csv> <file2.csv> ... --output_prefix <prefix> --max_size <size_in_mb>
-```
-
-Parameters:
-- `--input`: List of input CSV files to process
-- `--output_prefix`: Prefix for output filenames (will be numbered)
-- `--max_size`: Maximum size of each output file in MB (default: 29)
-
-## 🔍 Testing & Verification
-
-For testing purposes, you can generate sample data files:
-
-```bash
-python3 generate_test_files.py --num_files 6 --rows_per_file 1000 --output_dir ./test_files
-```
-
-## 📄 File Naming Conventions
-
-- Input files: Any valid CSV filename
-- Sorted output: `sorted_acronyms.csv`
-- Merged & split output: `[prefix]_1.csv`, `[prefix]_2.csv`, etc.
-- Reports: `acronym_report.txt` (default)
-- Inconsistency reports: `[output]_inconsistencies.csv`
-
-## 🤝 Contributing
-
-Contributions to improve the toolkit are welcome. Please ensure any modifications maintain data integrity and follow the existing code style.
-
-## 📋 Todo / Future Improvements
-
-- Add web interface for easier file management
-- Implement enhanced duplicate detection algorithms
-- Add visual reporting options
-- Extend description generation capabilities
-
-
-## Practical Use Snippets
-
-## To run the parser
-
-```bash
-python3 acronym_parser.py --input acronym-finder_1.csv --output my_acronyms.csv
-```
-
-## To run the sorter
-
-```bash
-python3 advanced_acronym_sorter.py --input my_acronyms.csv --output sorted_acronyms.csv --secondary-sort Grade --report --check-values
-```
-
-### To run the merger/sorter
-
-```bash
-python3 merge_sort_split_acronyms.py --input my_acronyms.csv my_acronyms-1.csv my_acronyms-2.csv my_acronyms-3.csv my_acronyms-4.csv my_acronyms-5.csv --output_prefix sorted_output --max_size 29
-```
-
-### To run grader
-
-```bash
-python3 acronym_grader.py sorted_output_1.csv sorted_output_graded.csv
-```
-
+[Add your license information here]

@@ -1,0 +1,37 @@
+=== ACRONYM ANALYSIS REPORT ===
+Generated: 2025-03-27 10:00:26
+
+Total entries: 7125
+Unique acronyms: 7110
+Average entries per acronym: 1.00
+
+Acronyms with multiple entries: 14
+
+Distribution of entries per acronym:
+  1 entry/entries: 7096 acronym(s)
+  2 entry/entries: 13 acronym(s)
+  3 entry/entries: 1 acronym(s)
+
+Top 10 most duplicated acronyms:
+  BBB: 3 occurrences
+  WSCIM: 2 occurrences
+  VOC: 2 occurrences
+  TIA: 2 occurrences
+  RSS: 2 occurrences
+  RBI: 2 occurrences
+  PSP: 2 occurrences
+  PDA: 2 occurrences
+  NRIMS: 2 occurrences
+  MLS: 2 occurrences
+
+Most common tags:
+  technology: 4710 occurrences
+  healthcare: 779 occurrences
+  system: 690 occurrences
+  education: 556 occurrences
+  finance: 550 occurrences
+  engineering: 549 occurrences
+  governance: 547 occurrences
+  management: 539 occurrences
+  safety: 538 occurrences
+  information: 538 occurrences

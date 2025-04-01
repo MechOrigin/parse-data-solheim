@@ -7,13 +7,12 @@ sorted_output_temp.csv
 **/temp_*.csv
 **/*_temp.*
 
-# Python-related files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -25,17 +24,41 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# Virtual Environment
 venv/
-ENV/
 env/
+ENV/
 
-# Output files (uncomment if you want to ignore all output files)
-# sorted_output_*.csv
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
-# Log files
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+data/raw/*
+data/processed/*
+data/final/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/final/.gitkeep
+output/*
+!output/.gitkeep
+
+# Logs
 *.log
+logs/
