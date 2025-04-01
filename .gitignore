@@ -50,12 +50,21 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
-data/raw/*
-data/processed/*
-data/final/*
+# Ignore temporary and system files in data directories
+data/**/.DS_Store
+data/**/._*
+data/**/*.tmp
+data/**/*.temp
+data/**/*.bak
+data/**/*.swp
+data/**/*.swo
+
+# Keep the directory structure
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/final/.gitkeep
+
+# Output directory
 output/*
 !output/.gitkeep
 
