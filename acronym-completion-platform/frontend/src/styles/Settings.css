@@ -1,8 +1,8 @@
 .settings-container {
-  background: var(--bg-secondary);
+  background: var(--background-color);
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin: 1rem 0;
+  margin: 1rem;
   overflow: hidden;
 }
 
@@ -12,8 +12,7 @@
   align-items: center;
   padding: 1rem;
   cursor: pointer;
-  background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-color);
+  user-select: none;
 }
 
 .settings-header h2 {
@@ -178,4 +177,74 @@
     margin-left: 1rem;
     padding-left: 0.5rem;
   }
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.settings-search {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--input-background);
+  color: var(--text-color);
+  font-size: 0.9rem;
+  width: 200px;
+}
+
+.settings-action-button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--button-background);
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.settings-action-button:hover {
+  background: var(--button-hover-background);
+  border-color: var(--button-hover-border);
+}
+
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+}
+
+.tooltip {
+  visibility: hidden;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.5rem;
+  background: var(--tooltip-background);
+  color: var(--tooltip-text);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.tooltip-container:hover .tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--tooltip-background) transparent transparent transparent;
 } 

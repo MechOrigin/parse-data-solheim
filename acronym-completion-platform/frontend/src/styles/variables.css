@@ -11,6 +11,14 @@
   --success-color: #10b981;
   --warning-color: #f59e0b;
   --info-color: #3b82f6;
+  --background-color: #ffffff;
+  --text-color: #333333;
+  --input-background: #f5f5f5;
+  --button-background: #f0f0f0;
+  --button-hover-background: #e0e0e0;
+  --button-hover-border: #d0d0d0;
+  --tooltip-background: #333333;
+  --tooltip-text: #ffffff;
 }
 
 /* Dark theme */
@@ -27,6 +35,14 @@
     --success-color: #34d399;
     --warning-color: #fbbf24;
     --info-color: #60a5fa;
+    --background-color: #1a1a1a;
+    --text-color: #ffffff;
+    --input-background: #2a2a2a;
+    --button-background: #333333;
+    --button-hover-background: #404040;
+    --button-hover-border: #505050;
+    --tooltip-background: #ffffff;
+    --tooltip-text: #333333;
   }
 }
 

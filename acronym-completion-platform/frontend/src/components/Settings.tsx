@@ -48,6 +48,20 @@ interface SettingsState {
   };
 }
 
+interface TooltipProps {
+  text: string;
+  children: React.ReactNode;
+}
+
+const Tooltip: React.FC<TooltipProps> = ({ text, children }) => {
+  return (
+    <div className="tooltip-container">
+      {children}
+      <div className="tooltip">{text}</div>
+    </div>
+  );
+};
+
 const defaultSettings: SettingsState = {
   temperature: 0.7,
   maxTokens: 1000,
@@ -94,6 +108,7 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'ai' | 'processing' | 'appearance' | 'advanced' | 'rateLimiting' | 'output' | 'caching'>('ai');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const { theme, setTheme } = useTheme();
 
   // Load settings from localStorage on component mount
@@ -165,6 +180,22 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
           return 'TTL must be between 60 seconds and 7 days';
         }
         break;
+      case 'gradeFilter.min':
+        if (value < 1 || value > 12) {
+          return 'Min grade must be between 1 and 12';
+        }
+        if (value > settings.gradeFilter.max) {
+          return 'Min grade cannot be greater than max grade';
+        }
+        break;
+      case 'gradeFilter.max':
+        if (value < 1 || value > 12) {
+          return 'Max grade must be between 1 and 12';
+        }
+        if (value < settings.gradeFilter.min) {
+          return 'Max grade cannot be less than min grade';
+        }
+        break;
     }
     return undefined;
   };
@@ -225,6 +256,64 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
     handleSettingChange('caching', newCaching);
   };
 
+  const handleResetToDefaults = () => {
+    if (window.confirm('Are you sure you want to reset all settings to default values?')) {
+      setSettings(defaultSettings);
+      setTheme(defaultSettings.theme);
+    }
+  };
+
+  const handleExportSettings = () => {
+    const settingsJson = JSON.stringify(settings, null, 2);
+    const blob = new Blob([settingsJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'acronym-settings.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportSettings = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedSettings = JSON.parse(e.target?.result as string);
+          setSettings(prevSettings => ({
+            ...prevSettings,
+            ...importedSettings
+          }));
+          if (importedSettings.theme) {
+            setTheme(importedSettings.theme);
+          }
+        } catch (err) {
+          console.error('Error importing settings:', err);
+          alert('Error importing settings. Please check the file format.');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleKeyPress = (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && isExpanded) {
+      setIsExpanded(false);
+    }
+  };
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [isExpanded]);
+
+  const filteredTabs = ['ai', 'processing', 'appearance', 'advanced', 'rateLimiting', 'output', 'caching'].filter(tab => 
+    tab.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -234,15 +323,40 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
     >
       <div className="settings-header" onClick={handleToggleExpand}>
         <h2>Settings</h2>
-        <motion.div 
-          className="expand-icon"
-          animate={{ rotate: isExpanded ? 180 : 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
-        </motion.div>
+        <div className="settings-actions">
+          <input
+            type="text"
+            placeholder="Search settings..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="settings-search"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button onClick={(e) => { e.stopPropagation(); handleResetToDefaults(); }} className="settings-action-button">
+            Reset to Defaults
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); handleExportSettings(); }} className="settings-action-button">
+            Export
+          </button>
+          <label className="settings-action-button">
+            Import
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImportSettings}
+              style={{ display: 'none' }}
+            />
+          </label>
+          <motion.div 
+            className="expand-icon"
+            animate={{ rotate: isExpanded ? 180 : 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </motion.div>
+        </div>
       </div>
 
       <AnimatePresence>
@@ -255,48 +369,15 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
             className="settings-content"
           >
             <div className="settings-tabs">
-              <button 
-                className={`tab-button ${activeTab === 'ai' ? 'active' : ''}`}
-                onClick={() => handleTabChange('ai')}
-              >
-                AI Model
-              </button>
-              <button 
-                className={`tab-button ${activeTab === 'processing' ? 'active' : ''}`}
-                onClick={() => handleTabChange('processing')}
-              >
-                Processing
-              </button>
-              <button 
-                className={`tab-button ${activeTab === 'rateLimiting' ? 'active' : ''}`}
-                onClick={() => handleTabChange('rateLimiting')}
-              >
-                Rate Limiting
-              </button>
-              <button 
-                className={`tab-button ${activeTab === 'output' ? 'active' : ''}`}
-                onClick={() => handleTabChange('output')}
-              >
-                Output
-              </button>
-              <button 
-                className={`tab-button ${activeTab === 'caching' ? 'active' : ''}`}
-                onClick={() => handleTabChange('caching')}
-              >
-                Caching
-              </button>
-              <button 
-                className={`tab-button ${activeTab === 'appearance' ? 'active' : ''}`}
-                onClick={() => handleTabChange('appearance')}
-              >
-                Appearance
-              </button>
-              <button 
-                className={`tab-button ${activeTab === 'advanced' ? 'active' : ''}`}
-                onClick={() => handleTabChange('advanced')}
-              >
-                Advanced
-              </button>
+              {filteredTabs.map(tab => (
+                <button 
+                  key={tab}
+                  className={`tab-button ${activeTab === tab ? 'active' : ''}`}
+                  onClick={() => handleTabChange(tab as any)}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
             </div>
 
             <div className="settings-panel">
@@ -312,7 +393,9 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                   >
                     <h3>AI Model Settings</h3>
                     <div className="setting-group">
-                      <label>Model</label>
+                      <Tooltip text="Choose between Gemini and Grok AI models">
+                        <label>Model</label>
+                      </Tooltip>
                       <select 
                         value={settings.model} 
                         onChange={(e) => handleSettingChange('model', e.target.value)}
@@ -322,7 +405,9 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                       </select>
                     </div>
                     <div className="setting-group">
-                      <label>Temperature</label>
+                      <Tooltip text="Controls randomness in the output. Lower values are more deterministic">
+                        <label>Temperature</label>
+                      </Tooltip>
                       <input 
                         type="range" 
                         min="0" 
@@ -335,7 +420,9 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                       {errors.temperature && <span className="error">{errors.temperature}</span>}
                     </div>
                     <div className="setting-group">
-                      <label>Max Tokens</label>
+                      <Tooltip text="Maximum number of tokens in the response">
+                        <label>Max Tokens</label>
+                      </Tooltip>
                       <input 
                         type="number" 
                         min="100" 
