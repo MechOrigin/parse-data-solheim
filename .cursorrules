@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "python": {
+      "command": "python3",
+      "description": "Use python3 instead of python command"
+    }
+  }
+} 

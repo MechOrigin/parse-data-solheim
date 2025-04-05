@@ -1,0 +1,125 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9]
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        cd acronym-completion-platform/backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio pytest-cov flake8 black
+    
+    - name: Lint with flake8
+      run: |
+        cd acronym-completion-platform/backend
+        flake8 . --count --select=E9,F63,F7,F82 --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Check formatting with black
+      run: |
+        cd acronym-completion-platform/backend
+        black . --check
+    
+    - name: Run tests with pytest
+      run: |
+        cd acronym-completion-platform/backend
+        pytest tests/ --cov=. --cov-report=xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./acronym-completion-platform/backend/coverage.xml
+        fail_ci_if_error: true
+
+  frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        cd acronym-completion-platform/frontend
+        npm ci
+    
+    - name: Run linting
+      run: |
+        cd acronym-completion-platform/frontend
+        npm run lint
+    
+    - name: Run tests
+      run: |
+        cd acronym-completion-platform/frontend
+        npm test
+    
+    - name: Build
+      run: |
+        cd acronym-completion-platform/frontend
+        npm run build
+
+  deploy:
+    needs: [test, frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        cd acronym-completion-platform/backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install frontend dependencies
+      run: |
+        cd acronym-completion-platform/frontend
+        npm ci
+    
+    - name: Build frontend
+      run: |
+        cd acronym-completion-platform/frontend
+        npm run build
+    
+    - name: Deploy to production
+      env:
+        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+      run: |
+        # Add deployment steps here
+        # This could be deploying to a cloud provider like AWS, GCP, or Azure
+        echo "Deploying to production..." 

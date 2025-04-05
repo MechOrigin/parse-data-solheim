@@ -73,19 +73,45 @@ The project contains several main components:
    - Located in `src/utils/`
    - Contains shared functionality and helper functions
 
+## Configuration Options
+
+The platform supports several configuration options to customize the acronym processing:
+
+1. **Batch Size**
+   - Control how many acronyms to process at once
+   - Default: 25 acronyms per batch
+   - Configurable through the settings panel
+   - Example: Set to 250 for larger batches
+
+2. **Grade Filtering**
+   - Select specific grades or grade ranges to process
+   - Options:
+     - Single grade (e.g., Grade 2 only)
+     - Grade range (e.g., Grades 5-4)
+     - All grades (default)
+   - Applied during initial processing
+
+3. **Acronym Enrichment**
+   - Toggle AI-powered enrichment of acronym data
+   - Default: Enabled
+   - When enabled:
+     - Adds missing definitions
+     - Generates descriptions
+     - Suggests relevant tags
+     - Uses web search and internal knowledge base
+   - Can be disabled for faster processing
+
+4. **Starting Point**
+   - Option to begin processing from a specific acronym
+   - Default: Disabled (processes from beginning)
+   - When enabled:
+     - Enter specific acronym (e.g., "DHA")
+     - System scans acronyms file to find match
+     - Processing begins from matched position
+   - Useful for resuming interrupted processing
+
+These settings can be configured through the platform's settings panel and are saved between sessions.
+
 ## Data Organization
 
-- Raw data files are stored in `data/raw/`
-- Processed intermediate files are in `data/processed/`
-- Final output files are stored in `data/final/`
-
-## Contributing
-
-1. Follow the existing code structure
-2. Use consistent naming conventions
-3. Add appropriate documentation
-4. Run tests before submitting changes
-
-## License
-
-[Add your license information here]
+- Raw data files are stored in `

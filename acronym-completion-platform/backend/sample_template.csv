@@ -1,0 +1,6 @@
+acronym,definition,description,tags,grade
+API,Application Programming Interface,A system that allows apps to communicate,"developer,backend,communication,rest,json",5
+ML,Machine Learning,A branch of AI that enables systems to learn from data,"ai,data-science,automation,analytics",4
+SaaS,Software as a Service,A software licensing and delivery model,"cloud,subscription,software,hosting",5
+IoT,Internet of Things,A network of connected devices that exchange data,"hardware,connectivity,automation,smart-devices",4
+UI,User Interface,The visual elements users interact with,"design,frontend,ux,web",3 

@@ -1,0 +1,3 @@
+"""
+Acronym completion platform package.
+""" 

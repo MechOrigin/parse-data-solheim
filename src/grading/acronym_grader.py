@@ -113,6 +113,10 @@ def grade_acronyms(input_csv, output_csv):
         # Combine text for analysis
         all_text = f"{definition} {description} {tags}".lower()
         
+        # Business/tech relevance check (moved up)
+        is_business_related = any(keyword in all_text for keyword in business_keywords)
+        is_tech_related = any(keyword in all_text for keyword in tech_keywords)
+        
         # --- Popularity Score (0-5) ---
         popularity_score = 0
         
@@ -149,9 +153,6 @@ def grade_acronyms(input_csv, output_csv):
                 popularity_score += 1
                 
             # Business/tech relevance boost
-            is_business_related = any(keyword in all_text for keyword in business_keywords)
-            is_tech_related = any(keyword in all_text for keyword in tech_keywords)
-            
             if is_business_related and is_tech_related:
                 popularity_score += 1
             elif is_business_related or is_tech_related:

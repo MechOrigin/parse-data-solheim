@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      white-space: pre-wrap;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    h2 {
+      margin-top: 0;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>API Test</h1>
+  
+  <div class="section">
+    <h2>Health Check</h2>
+    <button id="healthBtn">Check Health</button>
+    <div id="healthResult" class="result">Results will appear here...</div>
+  </div>
+
+  <div class="section">
+    <h2>Configuration</h2>
+    <button id="configBtn">Update Config</button>
+    <div id="configResult" class="result">Results will appear here...</div>
+  </div>
+
+  <div class="section">
+    <h2>File Upload</h2>
+    <input type="file" id="templateFile" accept=".csv" />
+    <button id="uploadTemplateBtn">Upload Template</button>
+    <div id="templateResult" class="result">Results will appear here...</div>
+    
+    <input type="file" id="acronymsFile" accept=".csv" />
+    <button id="uploadAcronymsBtn">Upload Acronyms</button>
+    <div id="acronymsResult" class="result">Results will appear here...</div>
+  </div>
+
+  <div class="section">
+    <h2>Processing</h2>
+    <button id="processBtn">Process Acronyms</button>
+    <div id="processResult" class="result">Results will appear here...</div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:8000';
+
+    // Health Check
+    document.getElementById('healthBtn').addEventListener('click', async () => {
+      const resultDiv = document.getElementById('healthResult');
+      resultDiv.textContent = 'Loading...';
+      
+      try {
+        const response = await fetch(`${API_BASE}/health`);
+        const data = await response.json();
+        resultDiv.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        resultDiv.textContent = `Error: ${error.message}`;
+      }
+    });
+
+    // Configuration
+    document.getElementById('configBtn').addEventListener('click', async () => {
+      const resultDiv = document.getElementById('configResult');
+      resultDiv.textContent = 'Loading...';
+      
+      try {
+        const config = {
+          selectedLLM: 'gemini',
+          geminiApiKey: 'test-key',
+          grokApiKey: 'test-key',
+          processingBatchSize: 10,
+          gradePrompt: 'Please provide a clear and concise definition for this acronym, suitable for grade {grade} students.'
+        };
+
+        const response = await fetch(`${API_BASE}/update-config`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(config),
+        });
+        const data = await response.json();
+        resultDiv.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        resultDiv.textContent = `Error: ${error.message}`;
+      }
+    });
+
+    // Template Upload
+    document.getElementById('uploadTemplateBtn').addEventListener('click', async () => {
+      const resultDiv = document.getElementById('templateResult');
+      const fileInput = document.getElementById('templateFile');
+      
+      if (!fileInput.files[0]) {
+        resultDiv.textContent = 'Please select a file first';
+        return;
+      }
+
+      resultDiv.textContent = 'Loading...';
+      
+      try {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        const response = await fetch(`${API_BASE}/upload-template`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await response.json();
+        resultDiv.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        resultDiv.textContent = `Error: ${error.message}`;
+      }
+    });
+
+    // Acronyms Upload
+    document.getElementById('uploadAcronymsBtn').addEventListener('click', async () => {
+      const resultDiv = document.getElementById('acronymsResult');
+      const fileInput = document.getElementById('acronymsFile');
+      
+      if (!fileInput.files[0]) {
+        resultDiv.textContent = 'Please select a file first';
+        return;
+      }
+
+      resultDiv.textContent = 'Loading...';
+      
+      try {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        const response = await fetch(`${API_BASE}/upload-acronyms`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await response.json();
+        resultDiv.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        resultDiv.textContent = `Error: ${error.message}`;
+      }
+    });
+
+    // Process Acronyms
+    document.getElementById('processBtn').addEventListener('click', async () => {
+      const resultDiv = document.getElementById('processResult');
+      resultDiv.textContent = 'Loading...';
+      
+      try {
+        const settings = {
+          startFromAcronym: '',
+          grade: 1,
+          batchSize: 10
+        };
+
+        const response = await fetch(`${API_BASE}/process-acronyms`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(settings),
+        });
+        const data = await response.json();
+        resultDiv.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        resultDiv.textContent = `Error: ${error.message}`;
+      }
+    });
+  </script>
+</body>
+</html> 

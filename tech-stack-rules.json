@@ -1,0 +1,82 @@
+{
+  "rules": {
+    "frontend": {
+      "framework": {
+        "name": "next.js",
+        "version": "14.2.26",
+        "description": "Use Next.js as the primary frontend framework"
+      },
+      "styling": {
+        "primary": "tailwindcss",
+        "config": {
+          "postcss": {
+            "plugins": [
+              "tailwindcss",
+              "autoprefixer"
+            ],
+            "description": "PostCSS plugins must be provided as strings, not functions"
+          }
+        },
+        "ui_components": {
+          "allowed": ["shadcn/ui", "radix-ui"],
+          "forbidden": ["mui", "bootstrap", "chakra-ui"],
+          "description": "Use shadcn/ui or Radix UI components with TailwindCSS"
+        }
+      },
+      "state_management": {
+        "allowed": ["react-query", "zustand"],
+        "forbidden": ["redux", "mobx"],
+        "description": "Prefer lightweight state management solutions"
+      }
+    },
+    "backend": {
+      "language": {
+        "primary": "python",
+        "version": "3.11+",
+        "description": "Use Python 3.11+ for backend services"
+      },
+      "framework": {
+        "allowed": ["fastapi"],
+        "forbidden": ["django", "flask"],
+        "description": "Use FastAPI for backend services"
+      },
+      "database": {
+        "primary": "postgresql",
+        "orm": "sqlalchemy",
+        "description": "Use PostgreSQL with SQLAlchemy ORM"
+      }
+    },
+    "devops": {
+      "containerization": {
+        "tool": "docker",
+        "description": "Use Docker for containerization"
+      },
+      "ci_cd": {
+        "allowed": ["github-actions"],
+        "description": "Use GitHub Actions for CI/CD"
+      }
+    },
+    "dependencies": {
+      "package_manager": {
+        "frontend": "npm",
+        "backend": "pip",
+        "description": "Use npm for frontend and pip for backend dependencies"
+      },
+      "version_control": {
+        "tool": "git",
+        "description": "Use Git for version control"
+      }
+    },
+    "security": {
+      "authentication": {
+        "method": "jwt",
+        "description": "Use JWT for authentication"
+      },
+      "api": {
+        "versioning": "v1",
+        "format": "rest",
+        "description": "Use REST API with v1 versioning"
+      }
+    }
+  }
+} 
