@@ -16,26 +16,26 @@
 - [x] Grade filtering
 
 ### Configuration Options
-- [ ] Batch size configuration
-  - [ ] Default 25 acronyms per batch
-  - [ ] Configurable up to 250 acronyms
-  - [ ] Settings persistence
-- [ ] Grade filtering
-  - [ ] Single grade selection
-  - [ ] Grade range selection
-  - [ ] Default to all grades
-- [ ] Acronym enrichment
-  - [ ] Toggle enrichment on/off
-  - [ ] Web search integration
-  - [ ] Internal knowledge base search
-  - [ ] Definition generation
-  - [ ] Description generation
-  - [ ] Tag suggestion
-- [ ] Starting point selection
-  - [ ] Acronym search functionality
-  - [ ] Position tracking
-  - [ ] Resume from position
-  - [ ] Default to beginning
+- [x] Batch size configuration
+  - [x] Default 250 acronyms per batch
+  - [x] Configurable up to 250 acronyms
+  - [x] Settings persistence
+- [x] Grade filtering
+  - [x] Single grade selection
+  - [x] Grade range selection
+  - [x] Default to all grades
+- [x] Acronym enrichment
+  - [x] Toggle enrichment on/off
+  - [x] Web search integration
+  - [x] Internal knowledge base search
+  - [x] Definition generation
+  - [x] Description generation
+  - [x] Tag suggestion
+- [x] Starting point selection
+  - [x] Acronym search functionality
+  - [x] Position tracking
+  - [x] Resume from position
+  - [x] Default to beginning
 
 ### Results Display
 - [x] Responsive table component
@@ -116,6 +116,7 @@
 - [x] Usage guide
 - [x] Error handling guide
 - [x] Testing guide
+- [x] Processing workflow documentation
 
 ### Deployment
 - [x] Frontend deployment
@@ -132,9 +133,9 @@
 - [ ] User authentication
 - [ ] Multi-language support
 - [ ] Advanced analytics
-- [ ] Batch processing optimization
-- [ ] API rate limiting
-- [ ] Caching strategy
+- [x] Batch processing optimization
+- [x] API rate limiting
+- [x] Caching strategy
 - [ ] Performance monitoring
 - [ ] Automated testing
 - [ ] CI/CD pipeline 

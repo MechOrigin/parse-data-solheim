@@ -6,6 +6,8 @@ from rate_limiter import RateLimiter
 import asyncio
 from typing import Optional, Dict, Any
 import time
+import re
+from api_key_manager import APIKeyManager
 
 class AIService:
     def __init__(self, config=None):
@@ -13,15 +15,17 @@ class AIService:
         print(f"Looking for .env file in: {os.path.join(os.getcwd(), '.env')}")
         load_dotenv()
         
-        # Force the API key to be set
-        api_key = "AIzaSyCZqWALaH7rxtl55oPps8njy6rG4SJRllo"
-        os.environ["GEMINI_API_KEY"] = api_key
+        # Initialize API key manager
+        self.api_key_manager = APIKeyManager()
+        print(f"Loaded {self.api_key_manager.get_key_count()} API keys")
         
-        print(f"Using Gemini API key: {api_key[:10]}...")  # Only print first 10 chars for security
-        print(f"API key length: {len(api_key)}")
-        print(f"API key format: {'valid' if api_key.startswith('AIzaSy') else 'invalid'}")
+        # Initialize with first available key
+        self.current_key = self.api_key_manager.get_available_key()
+        if not self.current_key:
+            raise ValueError("No available API keys")
         
-        genai.configure(api_key=api_key)
+        print(f"Using initial Gemini API key: {self.current_key[:10]}...")
+        genai.configure(api_key=self.current_key)
         self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
         
         # Cache for storing results
@@ -44,17 +48,21 @@ class AIService:
         if self.config and hasattr(self.config, 'rate_limiting'):
             rate_config = self.config.rate_limiting
             if rate_config["enabled"]:
+                # Convert requests per minute to requests per second
+                requests_per_second = rate_config["requests_per_minute"] / 60
+                burst_size = rate_config.get("burst_size", 5)  # Increased default burst size
+                max_retries = rate_config.get("max_retries", 5)  # Increased default retries
                 self.rate_limiter = RateLimiter(
-                    rate=rate_config["requests_per_second"],
-                    burst=rate_config["burst_size"],
-                    max_retries=rate_config["max_retries"]
+                    rate=requests_per_second,
+                    burst=burst_size,
+                    max_retries=max_retries
                 )
             else:
                 # If rate limiting is disabled, create a dummy rate limiter that doesn't limit
                 self.rate_limiter = RateLimiter(rate=1000, burst=1000, max_retries=0)
         else:
-            # Default rate limiter if no config is provided
-            self.rate_limiter = RateLimiter(rate=0.5, burst=1, max_retries=3)
+            # Default rate limiter if no config is provided - more lenient defaults
+            self.rate_limiter = RateLimiter(rate=1.0, burst=5, max_retries=5)  # 1 request per second, burst of 5
     
     def _is_cache_valid(self, cache_key):
         """Check if a cached item is still valid based on TTL"""
@@ -64,7 +72,8 @@ class AIService:
         if cache_key not in self.cache_timestamps:
             return False
             
-        ttl = self.config.caching["ttl_seconds"]
+        # Convert minutes to seconds
+        ttl = self.config.caching["ttl_minutes"] * 60
         timestamp = self.cache_timestamps[cache_key]
         return (time.time() - timestamp) < ttl
     
@@ -74,22 +83,65 @@ class AIService:
         self._update_rate_limiter()
         
         # Use config max_retries if available, otherwise use default
-        if max_retries is None and self.config and hasattr(self.config, 'rate_limiting'):
-            max_retries = self.config.rate_limiting["max_retries"]
-        elif max_retries is None:
-            max_retries = 3
+        if max_retries is None:
+            if self.config and hasattr(self.config, 'rate_limiting'):
+                max_retries = self.config.rate_limiting.get("max_retries", 3)
+            else:
+                max_retries = 3
+            
+        print(f"Making API call with max_retries={max_retries}")
             
         for attempt in range(max_retries):
             try:
                 async with self.rate_limiter:
+                    # Get a new API key if needed
+                    if not self.current_key or time.time() < self.api_key_manager.key_quota_reset.get(self.current_key, 0):
+                        self.current_key = self.api_key_manager.get_available_key()
+                        if not self.current_key:
+                            raise Exception("No available API keys")
+                        print(f"Switching to API key: {self.current_key[:10]}...")
+                        print(f"Current key usage: {self.api_key_manager.key_usage[self.current_key]}")
+                        print(f"Current key errors: {self.api_key_manager.key_errors[self.current_key]}")
+                        genai.configure(api_key=self.current_key)
+                        self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
+                    
                     response = await self.model.generate_content_async(prompt)
+                    # Reset error count on success
+                    self.api_key_manager.reset_key_errors(self.current_key)
+                    print(f"Successful API call with key: {self.current_key[:10]}...")
                     return response.text
             except Exception as e:
-                print(f"API call failed (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                error_str = str(e)
+                print(f"API call failed (attempt {attempt + 1}/{max_retries}): {error_str}")
+                
+                # Extract retry delay from error message if available
+                retry_delay = None
+                if "retry_delay" in error_str:
+                    try:
+                        # Try to extract seconds from the error message
+                        match = re.search(r'retry_delay\s*{\s*seconds:\s*(\d+)', error_str)
+                        if match:
+                            retry_delay = int(match.group(1))
+                    except:
+                        pass
+                
+                # Mark current key as having an error
+                if self.current_key:
+                    print(f"Marking key {self.current_key[:10]}... as having an error")
+                    self.api_key_manager.mark_key_error(self.current_key, retry_delay or 60)
+                    print(f"Key errors after marking: {self.api_key_manager.key_errors[self.current_key]}")
+                
                 if attempt < max_retries - 1:
-                    # Wait before retrying
-                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    # Use API-provided retry delay if available, otherwise use exponential backoff
+                    if retry_delay is not None:
+                        wait_time = retry_delay
+                    else:
+                        wait_time = 2 ** attempt
+                    
+                    print(f"Waiting {wait_time} seconds before retry...")
+                    await asyncio.sleep(wait_time)
                 else:
+                    print(f"All {max_retries} attempts failed. Last error: {error_str}")
                     raise
     
     async def get_definition(self, acronym: str, grade: str = "general") -> str:

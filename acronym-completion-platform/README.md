@@ -60,6 +60,33 @@ A web platform that automatically enriches acronym datasets with definitions, de
 - `POST /process-acronyms`: Process acronyms using AI
 - `GET /download-results`: Download enriched CSV
 
+## API Key Configuration
+
+The platform supports multiple Gemini API keys for load balancing. You can configure API keys in two ways:
+
+1. Single API key (default):
+   ```
+   GEMINI_API_KEY=your_api_key_here
+   ```
+
+2. Multiple API keys for load balancing:
+   ```
+   GEMINI_API_KEY=your_primary_api_key_here
+   GEMINI_API_KEY_1=your_secondary_api_key_here
+   GEMINI_API_KEY_2=your_tertiary_api_key_here
+   # Add more keys as needed
+   ```
+
+The system will automatically distribute requests across available API keys and handle rate limiting and quota management. When a key hits its quota limit, the system will automatically switch to another available key.
+
+### Load Balancing Features
+
+- Automatic distribution of requests across multiple API keys
+- Error tracking and automatic key rotation on failures
+- Quota management with automatic cooldown periods
+- Usage-based load balancing to prevent overloading any single key
+- Random jitter to prevent thundering herd problems
+
 ## AI Integration
 
 The platform uses a dual-AI approach:

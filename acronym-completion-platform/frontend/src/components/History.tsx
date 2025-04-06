@@ -12,13 +12,15 @@ export const History: React.FC<HistoryProps> = ({ onSelectHistory, onDeleteHisto
 
   useEffect(() => {
     const loadHistory = () => {
-      const storedHistory = localStorage.getItem('acronymHistory');
-      if (storedHistory) {
-        try {
-          const parsedHistory = JSON.parse(storedHistory);
-          setHistory(parsedHistory);
-        } catch (err) {
-          console.error('Error parsing history:', err);
+      if (typeof window !== 'undefined') {
+        const storedHistory = localStorage.getItem('acronymHistory');
+        if (storedHistory) {
+          try {
+            const parsedHistory = JSON.parse(storedHistory);
+            setHistory(parsedHistory);
+          } catch (err) {
+            console.error('Failed to parse history:', err);
+          }
         }
       }
     };
@@ -31,60 +33,34 @@ export const History: React.FC<HistoryProps> = ({ onSelectHistory, onDeleteHisto
   };
 
   const handleDelete = (id: string) => {
-    onDeleteHistory(id);
-    setHistory(prev => prev.filter(item => item.id !== id));
-    
-    // Update localStorage
     const updatedHistory = history.filter(item => item.id !== id);
-    localStorage.setItem('acronymHistory', JSON.stringify(updatedHistory));
+    setHistory(updatedHistory);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('acronymHistory', JSON.stringify(updatedHistory));
+    }
+    onDeleteHistory(id);
   };
 
   return (
     <div className="history-container">
       <h2>History</h2>
       {history.length === 0 ? (
-        <p className="no-history">No history items</p>
+        <p>No history available</p>
       ) : (
-        <div className="history-list">
+        <ul className="history-list">
           {history.map((item) => (
-            <div key={item.id} className="history-item">
-              <div className="history-content">
-                <h3>{item.acronym}</h3>
-                <p>{item.definition}</p>
-                {item.description && <p className="description">{item.description}</p>}
-                {item.tags.length > 0 && (
-                  <div className="tags">
-                    {item.tags.map((tag, index) => (
-                      <span key={index} className="tag">{tag}</span>
-                    ))}
-                  </div>
-                )}
-                <div className="metadata">
-                  <span className="grade">Grade {item.grade}</span>
-                  {Object.entries(item.metadata).map(([key, value]) => (
-                    <span key={key} className="metadata-item">
-                      {key}: {value}
-                    </span>
-                  ))}
-                </div>
+            <li key={item.id} className="history-item">
+              <div className="history-item-content">
+                <span className="acronym">{item.acronym}</span>
+                <span className="definition">{item.definition}</span>
               </div>
-              <div className="history-actions">
-                <button
-                  className="select-button"
-                  onClick={() => handleSelect(item)}
-                >
-                  Select
-                </button>
-                <button
-                  className="delete-button"
-                  onClick={() => handleDelete(item.id)}
-                >
-                  Delete
-                </button>
+              <div className="history-item-actions">
+                <button onClick={() => handleSelect(item)}>Select</button>
+                <button onClick={() => handleDelete(item.id)}>Delete</button>
               </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

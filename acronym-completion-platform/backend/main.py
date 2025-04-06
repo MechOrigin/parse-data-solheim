@@ -21,65 +21,52 @@ import traceback
 # Load environment variables
 load_dotenv()
 
-app = FastAPI(title="Acronym Completion Platform")
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Initialize AI services
-processing_config = ProcessingConfig()
-gemini_service = AIService(config=processing_config)
-grok_service = GrokService()
-
 class ProcessingConfig:
     def __init__(self):
-        self.llm = "gemini"
-        # Load API keys from environment variables
-        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
-        if not self.gemini_api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is not set")
+        self.llm = "gemini"  # Default to Gemini
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
         self.grok_api_key = os.getenv("GROK_API_KEY", "")
-        self.batch_size = 25  # Default batch size
-        self.grade_prompt = "Please provide a clear and concise definition for this acronym, suitable for grade {grade} students."
+        
+        self.batch_size = 250  # Default batch size
+        
         self.grade_filter = {
             "enabled": False,
             "single_grade": None,
             "grade_range": None
         }
+        
         self.enrichment = {
-            "enabled": True,  # Default to enabled
+            "enabled": True,
             "add_missing_definitions": True,
             "generate_descriptions": True,
             "suggest_tags": True,
-            "use_web_search": False,
+            "use_web_search": True,
             "use_internal_kb": True
         }
+        
         self.starting_point = {
             "enabled": False,
             "acronym": None
         }
+        
         self.rate_limiting = {
             "enabled": True,
-            "requests_per_second": 0.5,  # 1 request per 2 seconds
-            "burst_size": 1,
+            "requests_per_minute": 60,
+            "burst_size": 10,
             "max_retries": 3
         }
+        
         self.output_format = {
             "include_definitions": True,
             "include_descriptions": True,
             "include_tags": True,
             "include_grade": True,
-            "include_metadata": False
+            "include_metadata": True
         }
+        
         self.caching = {
             "enabled": True,
-            "ttl_seconds": 86400  # 24 hours
+            "ttl_seconds": 3600
         }
 
     def update(self, config: dict):
@@ -119,7 +106,7 @@ class ProcessingConfig:
         # Update rate limiting
         rate_limiting = processing_config.get("rateLimiting", {})
         self.rate_limiting["enabled"] = rate_limiting.get("enabled", self.rate_limiting["enabled"])
-        self.rate_limiting["requests_per_second"] = rate_limiting.get("requestsPerSecond", self.rate_limiting["requests_per_second"])
+        self.rate_limiting["requests_per_minute"] = rate_limiting.get("requestsPerMinute", self.rate_limiting["requests_per_minute"])
         self.rate_limiting["burst_size"] = rate_limiting.get("burstSize", self.rate_limiting["burst_size"])
         self.rate_limiting["max_retries"] = rate_limiting.get("maxRetries", self.rate_limiting["max_retries"])
         
@@ -135,10 +122,22 @@ class ProcessingConfig:
         caching = processing_config.get("caching", {})
         self.caching["enabled"] = caching.get("enabled", self.caching["enabled"])
         self.caching["ttl_seconds"] = caching.get("ttlSeconds", self.caching["ttl_seconds"])
-        
-        self.grade_prompt = config.get("gradePrompt", self.grade_prompt)
 
+app = FastAPI(title="Acronym Completion Platform")
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize AI services
 processing_config = ProcessingConfig()
+gemini_service = AIService(config=processing_config)
+grok_service = GrokService()
 
 # Authentication endpoints
 @app.post("/token", response_model=Token)
@@ -236,132 +235,123 @@ async def upload_acronyms(file: UploadFile = File(...), current_user: User = Dep
 @app.post("/process")
 @track_api_call("/process")
 @track_performance
-async def process_files(template_file: UploadFile = File(...), acronyms_file: UploadFile = File(...), current_user: User = Depends(get_current_active_user)):
+async def process_files(current_user: User = Depends(get_current_active_user)):
+    """Process acronyms using the configured AI service"""
     try:
-        # Save the uploaded files
-        template_path = "template.csv"
-        acronyms_path = "acronyms.csv"
+        # Check if template and acronyms files exist
+        if not os.path.exists("template.csv") or not os.path.exists("acronyms.csv"):
+            raise HTTPException(status_code=400, detail="Template and acronyms files must be uploaded first")
         
-        with open(template_path, "wb") as buffer:
-            content = await template_file.read()
-            buffer.write(content)
+        # Read the acronyms file
+        df = pd.read_csv("acronyms.csv", header=None)
+        acronyms = df[0].tolist()  # Assuming acronyms are in the first column
         
-        with open(acronyms_path, "wb") as buffer:
-            content = await acronyms_file.read()
-            buffer.write(content)
-        
-        # Read the files
-        template_df = pd.read_csv(template_path)
-        acronyms_df = pd.read_csv(acronyms_path)
-        
-        # If no header row exists in acronyms_df, add one and rename the first column to 'acronym'
-        if len(acronyms_df.columns) >= 1 and 'acronym' not in acronyms_df.columns:
-            acronyms_df.columns = ['acronym'] + [f'col_{i}' for i in range(1, len(acronyms_df.columns))]
-        
-        # Validate the acronyms file
-        if 'acronym' not in acronyms_df.columns:
-            raise HTTPException(status_code=400, detail="Acronyms file must contain an 'acronym' column")
-        
-        # Apply starting point filter if enabled
-        if processing_config.starting_point["enabled"] and processing_config.starting_point["acronym"]:
-            start_acronym = processing_config.starting_point["acronym"]
-            # Find the index of the starting acronym
-            start_index = acronyms_df[acronyms_df["acronym"] == start_acronym].index
-            if not start_index.empty:
-                start_idx = start_index[0]
-                acronyms_df = acronyms_df.iloc[start_idx:].reset_index(drop=True)
-            else:
-                # If acronym not found, start from beginning
-                print(f"Starting acronym '{start_acronym}' not found in the list. Starting from beginning.")
-        
-        # Apply grade filtering if enabled
-        if processing_config.grade_filter["enabled"]:
-            if processing_config.grade_filter["single_grade"]:
-                # Filter by single grade
-                grade = processing_config.grade_filter["single_grade"]
-                acronyms_df = acronyms_df[acronyms_df["acronym"].isin(
-                    template_df[template_df["grade"] == grade]["acronym"]
-                )].reset_index(drop=True)
-            elif processing_config.grade_filter["grade_range"]:
-                # Filter by grade range
-                start_grade = processing_config.grade_filter["grade_range"]["start"]
-                end_grade = processing_config.grade_filter["grade_range"]["end"]
-                
-                # Convert grades to numeric if possible
-                try:
-                    start_grade_num = float(start_grade)
-                    end_grade_num = float(end_grade)
-                    # Filter template by grade range
-                    filtered_template = template_df[
-                        (template_df["grade"].apply(lambda x: float(x) if isinstance(x, (int, float, str)) and str(x).replace('.', '').isdigit() else 0) >= start_grade_num) &
-                        (template_df["grade"].apply(lambda x: float(x) if isinstance(x, (int, float, str)) and str(x).replace('.', '').isdigit() else 0) <= end_grade_num)
-                    ]
-                except (ValueError, TypeError):
-                    # If grades are not numeric, filter as strings
-                    filtered_template = template_df[
-                        (template_df["grade"] >= start_grade) &
-                        (template_df["grade"] <= end_grade)
-                    ]
-                
-                acronyms_df = acronyms_df[acronyms_df["acronym"].isin(filtered_template["acronym"])].reset_index(drop=True)
-        
-        # Process the acronyms in batches
+        # Process acronyms in batches
         results = []
         batch_size = processing_config.batch_size
+        quota_exhausted = False
         
-        for i in range(0, len(acronyms_df), batch_size):
-            batch = acronyms_df.iloc[i:i+batch_size]
+        for i in range(0, len(acronyms), batch_size):
+            batch = acronyms[i:i + batch_size]
             batch_results = []
             
-            for _, row in batch.iterrows():
-                acronym = row["acronym"]
-                # Convert grade to Python int or str if it's a string
-                grade_value = template_df[template_df["acronym"] == acronym]["grade"].iloc[0] if acronym in template_df["acronym"].values else "general"
-                grade = int(grade_value) if isinstance(grade_value, (int, float, np.number)) else str(grade_value)
-                
-                # Get definition from AI service
+            for acronym in batch:
                 try:
-                    if processing_config.llm == "gemini":
-                        definition = await gemini_service.get_definition(acronym, str(grade))
-                    else:
-                        definition = await grok_service.get_definition(acronym, str(grade))
-                except Exception as e:
-                    print(f"Error getting definition for {acronym}: {str(e)}")
-                    definition = f"Error: {str(e)}"
-                
-                # Enrich the acronym if enabled
-                description = ""
-                tags = ""
-                if processing_config.enrichment["enabled"]:
-                    try:
-                        if processing_config.llm == "gemini":
-                            enrichment = await gemini_service.enrich_acronym(acronym, definition, str(grade))
+                    # Skip processing if quota is exhausted
+                    if quota_exhausted:
+                        batch_results.append({
+                            "acronym": acronym,
+                            "definition": "Processing skipped - API quota exhausted",
+                            "enrichment": {"description": "Processing skipped - API quota exhausted", "tags": "quota_exhausted"}
+                        })
+                        continue
+                    
+                    # Get definition based on selected LLM
+                    if processing_config.llm == "grok":
+                        if not processing_config.grok_api_key:
+                            print(f"Grok API key not set, falling back to Gemini for {acronym}")
+                            try:
+                                definition = await gemini_service.get_definition(acronym)
+                            except Exception as e:
+                                if "quota" in str(e).lower() or "429" in str(e):
+                                    quota_exhausted = True
+                                    definition = "Processing skipped - API quota exhausted"
+                                else:
+                                    definition = f"Error: {str(e)}"
                         else:
-                            enrichment = await grok_service.enrich_acronym(acronym, definition, str(grade))
-                        
-                        description = enrichment.get("description", "")
-                        tags = enrichment.get("tags", "")
-                    except Exception as e:
-                        print(f"Error enriching acronym {acronym}: {str(e)}")
-                
-                batch_results.append({
-                    "acronym": acronym,
-                    "definition": definition,
-                    "description": description,
-                    "tags": tags,
-                    "grade": grade
-                })
+                            try:
+                                definition = await grok_service.get_definition(acronym)
+                            except Exception as e:
+                                print(f"Error with Grok API for {acronym}, falling back to Gemini: {str(e)}")
+                                try:
+                                    definition = await gemini_service.get_definition(acronym)
+                                except Exception as gemini_error:
+                                    if "quota" in str(gemini_error).lower() or "429" in str(gemini_error):
+                                        quota_exhausted = True
+                                        definition = "Processing skipped - API quota exhausted"
+                                    else:
+                                        definition = f"Error: {str(gemini_error)}"
+                    else:
+                        try:
+                            definition = await gemini_service.get_definition(acronym)
+                        except Exception as e:
+                            if "quota" in str(e).lower() or "429" in str(e):
+                                quota_exhausted = True
+                                definition = "Processing skipped - API quota exhausted"
+                            else:
+                                definition = f"Error: {str(e)}"
+                    
+                    # Enrich acronym if enabled and quota not exhausted
+                    enrichment = None
+                    if processing_config.enrichment["enabled"] and not quota_exhausted:
+                        if processing_config.llm == "grok":
+                            if not processing_config.grok_api_key:
+                                print(f"Grok API key not set, skipping enrichment for {acronym}")
+                                enrichment = {"description": "Enrichment disabled - Grok API key not set", "tags": "disabled"}
+                            else:
+                                try:
+                                    enrichment = await grok_service.enrich_acronym(acronym, definition)
+                                except Exception as e:
+                                    print(f"Error with Grok API enrichment for {acronym}, skipping enrichment: {str(e)}")
+                                    enrichment = {"description": f"Enrichment error: {str(e)}", "tags": "error"}
+                        else:
+                            try:
+                                enrichment = await gemini_service.enrich_acronym(acronym, definition)
+                            except Exception as e:
+                                if "quota" in str(e).lower() or "429" in str(e):
+                                    quota_exhausted = True
+                                    enrichment = {"description": "Enrichment skipped - API quota exhausted", "tags": "quota_exhausted"}
+                                else:
+                                    enrichment = {"description": f"Enrichment error: {str(e)}", "tags": "error"}
+                    elif quota_exhausted:
+                        enrichment = {"description": "Enrichment skipped - API quota exhausted", "tags": "quota_exhausted"}
+                    
+                    batch_results.append({
+                        "acronym": acronym,
+                        "definition": definition,
+                        "enrichment": enrichment
+                    })
+                except Exception as e:
+                    print(f"Error processing acronym {acronym}: {str(e)}")
+                    batch_results.append({
+                        "acronym": acronym,
+                        "definition": f"Error: {str(e)}",
+                        "enrichment": None
+                    })
             
             results.extend(batch_results)
+            
+            # If quota is exhausted, add a message to the results
+            if quota_exhausted:
+                results.append({
+                    "acronym": "QUOTA_EXHAUSTED",
+                    "definition": "API quota has been exhausted. Remaining acronyms will be skipped.",
+                    "enrichment": {"description": "Processing stopped due to API quota exhaustion", "tags": "quota_exhausted"}
+                })
+                break
         
-        # Save results to CSV
-        results_df = pd.DataFrame(results)
-        results_df.to_csv("enriched_acronyms.csv", index=False)
-        
-        return JSONResponse(content={"results": results})
+        return {"results": results}
     except Exception as e:
-        print(f"Error in process_files: {str(e)}")
-        print(f"Stack trace: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/download-results")

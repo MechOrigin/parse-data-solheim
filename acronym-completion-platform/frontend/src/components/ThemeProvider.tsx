@@ -26,9 +26,12 @@ interface ThemeProviderProps {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
-    // Get theme from localStorage or default to system
-    const savedTheme = localStorage.getItem('theme') as Theme;
-    return savedTheme || 'system';
+    // Check if we're in a browser environment before accessing localStorage
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme') as Theme;
+      return savedTheme || 'system';
+    }
+    return 'system';
   });
 
   useEffect(() => {
@@ -36,7 +39,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     document.documentElement.setAttribute('data-theme', theme);
     
     // Save theme preference to localStorage
-    localStorage.setItem('theme', theme);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('theme', theme);
+    }
     
     // If theme is system, we need to watch for system changes
     if (theme === 'system') {

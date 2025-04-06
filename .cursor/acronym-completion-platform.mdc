@@ -1,0 +1,85 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # Acronym Completion Platform Rules
+
+## Project Structure
+- Frontend: Next.js application in `/frontend`
+- Backend: Python FastAPI application in `/backend`
+- Nginx configuration in `/nginx`
+- Docker configuration files in root directory
+
+## Development Environment
+- Run all services on localhost during development
+- Use Python 3.x exclusively (no Python 2.x)
+- Use virtual environments for Python dependencies
+- Run frontend on localhost:3000
+- Run backend on localhost:8000
+
+## Code Style Rules
+
+### Frontend (Next.js)
+- Use TypeScript for all new files
+- Follow Next.js 13+ App Router conventions
+- Use Tailwind CSS for styling
+- Implement responsive design patterns
+- Follow React hooks best practices
+
+### Backend (FastAPI)
+- Use Python 3.x type hints
+- Follow PEP 8 style guide
+- Implement proper error handling
+- Use async/await for database operations
+- Document all API endpoints with OpenAPI
+
+## File Organization
+- Keep components modular and reusable
+- Separate business logic from UI components
+- Maintain clear separation between frontend and backend
+- Use proper directory structure for API routes
+
+## Testing
+- Write unit tests for critical functionality
+- Implement integration tests for API endpoints
+- Use proper test naming conventions
+- Maintain good test coverage
+
+## Documentation
+- Document all major components and functions
+- Keep README files up to date
+- Include setup instructions
+- Document API endpoints
+
+## Security
+- Never commit sensitive information
+- Use environment variables for secrets
+- Implement proper authentication
+- Follow security best practices
+
+## Performance
+- Optimize database queries
+- Implement proper caching strategies
+- Minimize bundle size
+- Use proper indexing
+
+## Git Workflow
+- Use meaningful commit messages
+- Follow conventional commits
+- Create feature branches for new work
+- Keep PRs focused and small
+
+# Docker configuration is temporarily disabled for local development
+# ## Docker
+# - Use multi-stage builds
+# - Optimize layer caching
+# - Follow Docker best practices
+# - Keep images minimal
+
+# Nginx configuration is temporarily disabled for local development
+# ## Nginx
+# - Configure proper SSL
+# - Implement security headers
+# - Use proper caching rules
+# - Configure proper logging

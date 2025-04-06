@@ -20,56 +20,15 @@ export interface ProcessingConfig {
   };
   enrichment: {
     enabled: boolean;
-    addMissingDefinitions?: boolean;
-    generateDescriptions?: boolean;
-    suggestTags?: boolean;
-    useWebSearch?: boolean;
-    useInternalKb?: boolean;
-  };
-  startingPoint: {
-    enabled: boolean;
-    acronym?: string;
-  };
-  rateLimiting?: {
-    enabled: boolean;
-    requestsPerSecond: number;
-    burstSize: number;
-    maxRetries: number;
-  };
-  outputFormat?: {
-    includeDefinitions: boolean;
-    includeDescriptions: boolean;
-    includeTags: boolean;
-    includeGrade: boolean;
-    includeMetadata: boolean;
-  };
-  caching?: {
-    enabled: boolean;
-    ttlSeconds: number;
-  };
-}
-
-export interface SettingsState {
-  temperature: number;
-  maxTokens: number;
-  model: 'grok' | 'gemini';
-  batchSize: number;
-  autoSave: boolean;
-  historyLimit: number;
-  theme: 'light' | 'dark' | 'system';
-  gradeFilter: {
-    enabled: boolean;
-    min: number;
-    max: number;
-  };
-  selectiveEnrichment: boolean;
-  enrichment: {
-    enabled: boolean;
     addMissingDefinitions: boolean;
     generateDescriptions: boolean;
     suggestTags: boolean;
     useWebSearch: boolean;
     useInternalKb: boolean;
+  };
+  startingPoint: {
+    enabled: boolean;
+    acronym?: string;
   };
   rateLimiting: {
     enabled: boolean;
@@ -88,8 +47,19 @@ export interface SettingsState {
     enabled: boolean;
     ttlSeconds: number;
   };
+}
+
+export interface SettingsState {
+  temperature: number;
+  maxTokens: number;
+  model: 'grok' | 'gemini';
+  geminiApiKey?: string;
+  grokApiKey?: string;
+  processingConfig: ProcessingConfig;
+  autoSave: boolean;
+  historyLimit: number;
+  theme: 'light' | 'dark' | 'system';
   isOpen?: boolean;
-  startingPoint?: string;
 }
 
 export interface FileUploadProps {

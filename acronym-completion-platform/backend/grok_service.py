@@ -12,7 +12,7 @@ class GrokService:
         if not self.api_key:
             raise ValueError("GROK_API_KEY environment variable is not set")
         
-        self.api_url = "https://api.grok.x.ai/v1/chat/completions"
+        self.api_url = "https://api.groq.com/openai/v1/chat/completions"
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"

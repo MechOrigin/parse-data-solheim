@@ -5,21 +5,32 @@ import { motion } from 'framer-motion';
 import { FileUpload } from '@/components/FileUpload';
 import Settings from '@/components/Settings';
 import ProcessingStatus from '@/components/ProcessingStatus';
-import Results, { Result } from '@/components/Results';
+import Results from '@/components/Results';
+import { Result, SettingsState } from '@/types';
 import { History } from '@/components/History';
 import { EditAcronym } from '@/components/EditAcronym';
-import { Login } from '@/components/Login';
+import Login from '@/components/Login';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 // Define the interfaces locally to match the components
 interface AcronymResult {
+  id: string;
   acronym: string;
   definition: string;
   description: string;
   tags: string[];
-  grade: string;
+  grade: number;
+  metadata: Record<string, string>;
   isEnriched?: boolean;
+}
+
+interface Acronym {
+  acronym: string;
+  definition: string;
+  description: string;
+  tags: string;
+  grade: string;
 }
 
 export default function Home() {
@@ -38,12 +49,16 @@ export default function Home() {
   const [selectedAcronym, setSelectedAcronym] = useState<Result | null>(null);
   const [showEditAcronym, setShowEditAcronym] = useState<boolean>(false);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [history, setHistory] = useState<Result[]>([]);
+  const [editingAcronym, setEditingAcronym] = useState<Acronym | null>(null);
 
   useEffect(() => {
     // Check if we have a stored token
-    const storedToken = localStorage.getItem('authToken');
-    if (storedToken) {
-      setAuthToken(storedToken);
+    if (typeof window !== 'undefined') {
+      const storedToken = localStorage.getItem('authToken');
+      if (storedToken) {
+        setAuthToken(storedToken);
+      }
     }
 
     // Check backend health on startup
@@ -61,12 +76,16 @@ export default function Home() {
 
   const handleLogin = (token: string) => {
     setAuthToken(token);
-    localStorage.setItem('authToken', token);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('authToken', token);
+    }
   };
 
   const handleLogout = () => {
     setAuthToken(null);
-    localStorage.removeItem('authToken');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('authToken');
+    }
   };
 
   const handleTemplateUpload = async (file: File) => {
@@ -129,7 +148,7 @@ export default function Home() {
     }
   };
 
-  const handleSettingsChange = (newSettings: { temperature: number; maxTokens: number }) => {
+  const handleSettingsChange = (newSettings: SettingsState) => {
     setSettings(newSettings);
     
     // Update backend configuration
@@ -140,42 +159,48 @@ export default function Home() {
         'Authorization': `Bearer ${authToken}`,
       },
       body: JSON.stringify({
-        temperature: newSettings.temperature,
-        maxTokens: newSettings.maxTokens,
+        selectedLLM: newSettings.model,
+        geminiApiKey: newSettings.geminiApiKey,
+        grokApiKey: newSettings.grokApiKey,
+        processingConfig: newSettings.processingConfig
       }),
-    }).catch(err => {
-      console.error('Failed to update settings:', err);
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Failed to update configuration');
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Configuration updated successfully:', data);
+    })
+    .catch(error => {
+      console.error('Error updating configuration:', error);
     });
+  };
+
+  const handleDeleteHistory = (id: string) => {
+    const updatedHistory = history.filter(item => item.id !== id);
+    setHistory(updatedHistory);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('acronymHistory', JSON.stringify(updatedHistory));
+    }
   };
 
   const processAcronyms = async () => {
     if (!templateFile || !acronymsFile) {
-      const errorMessage = 'Please upload both template and acronyms files';
-      setError(errorMessage);
-      toast.error(errorMessage);
+      toast.error('Please upload both template and acronyms files');
       return;
     }
 
     setIsProcessing(true);
     setProgress(0);
     setError(null);
-    toast.info('Processing acronyms...');
-
-    const formData = new FormData();
-    formData.append('template_file', templateFile);
-    formData.append('acronyms_file', acronymsFile);
 
     try {
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 1000);
+      const formData = new FormData();
+      formData.append('template_file', templateFile);
+      formData.append('acronyms_file', acronymsFile);
 
       const response = await fetch('http://localhost:8000/process', {
         method: 'POST',
@@ -185,23 +210,31 @@ export default function Home() {
         body: formData,
       });
 
-      clearInterval(progressInterval);
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Failed to process acronyms');
       }
 
       const data = await response.json();
-      setResults(data.results);
-      setProgress(100);
+      const processedResults: Result[] = data.results.map((result: any) => ({
+        id: result.id || crypto.randomUUID(),
+        acronym: result.acronym,
+        definition: result.definition,
+        description: result.description || '',
+        tags: result.tags || [],
+        grade: result.grade || 1,
+        metadata: result.metadata || {}
+      }));
+
+      setResults(processedResults);
       toast.success('Acronyms processed successfully!');
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred while processing acronyms';
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
       setError(errorMessage);
-      toast.error(`Processing failed: ${errorMessage}`);
+      toast.error(`Failed to process acronyms: ${errorMessage}`);
     } finally {
       setIsProcessing(false);
+      setProgress(100);
     }
   };
 
@@ -242,13 +275,31 @@ export default function Home() {
   };
 
   const handleEditAcronym = (acronym: Result) => {
-    setSelectedAcronym(acronym);
+    setEditingAcronym({
+      acronym: acronym.acronym,
+      definition: acronym.definition,
+      description: acronym.description,
+      tags: acronym.tags.join(', '),
+      grade: acronym.grade.toString()
+    });
     setShowEditAcronym(true);
   };
 
-  const handleSaveEdit = (updatedAcronym: Result) => {
-    setResults(results.map(r => r.acronym === updatedAcronym.acronym ? updatedAcronym : r));
-    setShowEditAcronym(false);
+  const handleSaveEdit = (updatedAcronym: Acronym) => {
+    if (editingAcronym) {
+      const result: Result = {
+        id: crypto.randomUUID(),
+        acronym: updatedAcronym.acronym,
+        definition: updatedAcronym.definition,
+        description: updatedAcronym.description,
+        tags: updatedAcronym.tags.split(',').map(tag => tag.trim()),
+        grade: Number(updatedAcronym.grade),
+        metadata: {}
+      };
+      setResults(results.map(r => r.acronym === editingAcronym.acronym ? result : r));
+      setShowEditAcronym(false);
+      setEditingAcronym(null);
+    }
   };
 
   const handleRemoveTemplate = () => {
@@ -408,7 +459,7 @@ export default function Home() {
             <div className="overflow-x-auto">
               <Results
                 results={results}
-                onUpdateAcronym={handleSaveEdit}
+                onUpdateAcronym={handleEditAcronym}
               />
             </div>
           </section>
@@ -431,16 +482,13 @@ export default function Home() {
                 setResults(results);
                 setShowHistory(false);
               }}
-              onDeleteHistory={(id: number) => {
-                // Implement delete history functionality
-                console.log('Delete history:', id);
-              }}
+              onDeleteHistory={handleDeleteHistory}
             />
           )}
         </section>
 
         {/* Edit Acronym Modal */}
-        {showEditAcronym && selectedAcronym && (
+        {showEditAcronym && editingAcronym && (
           <div className="glass-modal">
             <div className="glass-modal-content">
               <div className="glass-modal-header">
@@ -455,16 +503,8 @@ export default function Home() {
                 </button>
               </div>
               <EditAcronym
-                acronym={{
-                  ...selectedAcronym,
-                  tags: selectedAcronym.tags.join(', ')
-                }}
-                onSave={(updatedAcronym) => {
-                  handleSaveEdit({
-                    ...updatedAcronym,
-                    tags: updatedAcronym.tags.split(',').map(tag => tag.trim())
-                  } as Result);
-                }}
+                acronym={editingAcronym}
+                onSave={handleSaveEdit}
                 onCancel={() => setShowEditAcronym(false)}
               />
             </div>

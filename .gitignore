@@ -7,6 +7,10 @@ sorted_output_temp.csv
 **/temp_*.csv
 **/*_temp.*
 
+# Environment variables
+.env
+.env.*
+
 # Python
 __pycache__/
 *.py[cod]
@@ -31,8 +35,9 @@ wheels/
 
 # Virtual Environment
 venv/
-env/
 ENV/
+env/
+.venv/
 
 # IDE
 .idea/
@@ -71,3 +76,11 @@ output/*
 # Logs
 *.log
 logs/
+
+# Test coverage
+.coverage
+htmlcov/
+
+# Output directories
+output/
+data/processed/

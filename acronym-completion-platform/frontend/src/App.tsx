@@ -7,9 +7,12 @@ import Results from './components/Results';
 import { History } from './components/History';
 import { ThemeProvider } from './components/ThemeProvider';
 import { SettingsState, Result, FileUploadProps, ProcessingStatusProps, ResultsProps, HistoryProps } from './types';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import Login from './components/Login';
 import './styles/App.css';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+  const { token, isAuthenticated } = useAuth();
   const [settings, setSettings] = useState<SettingsState>({
     temperature: 0.7,
     maxTokens: 1000,
@@ -59,6 +62,11 @@ const App: React.FC = () => {
   const [results, setResults] = useState<Result[]>([]);
   const [showHistory, setShowHistory] = useState<boolean>(false);
 
+  const getAuthHeaders = () => ({
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  });
+
   useEffect(() => {
     // Check backend health on startup
     fetch('http://localhost:8000/health')
@@ -79,9 +87,7 @@ const App: React.FC = () => {
     // Update backend configuration
     fetch('http://localhost:8000/update-config', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify(newSettings),
     }).catch(err => {
       console.error('Failed to update settings:', err);
@@ -92,22 +98,23 @@ const App: React.FC = () => {
     setTemplateFile(file);
     setError(null);
     
-    // Upload template file to backend
     const formData = new FormData();
     formData.append('file', file);
     
     try {
       const response = await fetch('http://localhost:8000/upload-template', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
         body: formData,
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to upload template file');
+        throw new Error('Failed to upload template file');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred while uploading template file');
+      setError(err instanceof Error ? err.message : 'An error occurred');
     }
   };
 
@@ -115,22 +122,23 @@ const App: React.FC = () => {
     setAcronymsFile(file);
     setError(null);
     
-    // Upload acronyms file to backend
     const formData = new FormData();
     formData.append('file', file);
     
     try {
       const response = await fetch('http://localhost:8000/upload-acronyms', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
         body: formData,
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to upload acronyms file');
+        throw new Error('Failed to upload acronyms file');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred while uploading acronyms file');
+      setError(err instanceof Error ? err.message : 'An error occurred');
     }
   };
 
@@ -152,6 +160,9 @@ const App: React.FC = () => {
 
       const response = await fetch('http://localhost:8000/process', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
         body: formData,
       });
 
@@ -259,6 +270,10 @@ const App: React.FC = () => {
     }
   };
 
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
   return (
     <ThemeProvider>
       <div className="app-container">
@@ -297,6 +312,14 @@ const App: React.FC = () => {
         </main>
       </div>
     </ThemeProvider>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 

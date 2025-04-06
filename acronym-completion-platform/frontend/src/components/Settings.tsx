@@ -2,50 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import '../styles/Settings.css';
 import { useTheme } from './ThemeProvider';
+import { SettingsState, ProcessingConfig } from '../types';
 
 interface SettingsProps {
   onSettingsChange: (settings: SettingsState) => void;
-}
-
-interface SettingsState {
-  temperature: number;
-  maxTokens: number;
-  model: 'grok' | 'gemini';
-  batchSize: number;
-  autoSave: boolean;
-  historyLimit: number;
-  theme: 'light' | 'dark' | 'system';
-  gradeFilter: {
-    enabled: boolean;
-    min: number;
-    max: number;
-  };
-  selectiveEnrichment: boolean;
-  enrichment: {
-    enabled: boolean;
-    addMissingDefinitions: boolean;
-    generateDescriptions: boolean;
-    suggestTags: boolean;
-    useWebSearch: boolean;
-    useInternalKb: boolean;
-  };
-  rateLimiting: {
-    enabled: boolean;
-    requestsPerSecond: number;
-    burstSize: number;
-    maxRetries: number;
-  };
-  outputFormat: {
-    includeDefinitions: boolean;
-    includeDescriptions: boolean;
-    includeTags: boolean;
-    includeGrade: boolean;
-    includeMetadata: boolean;
-  };
-  caching: {
-    enabled: boolean;
-    ttlSeconds: number;
-  };
 }
 
 interface TooltipProps {
@@ -65,42 +25,49 @@ const Tooltip: React.FC<TooltipProps> = ({ text, children }) => {
 const defaultSettings: SettingsState = {
   temperature: 0.7,
   maxTokens: 1000,
-  model: 'grok',
-  batchSize: 10,
+  model: 'gemini',
+  geminiApiKey: '',
+  grokApiKey: '',
+  processingConfig: {
+    batchSize: 250,
+    gradeFilter: {
+      enabled: false,
+      singleGrade: undefined,
+      gradeRange: undefined
+    },
+    enrichment: {
+      enabled: true,
+      addMissingDefinitions: true,
+      generateDescriptions: true,
+      suggestTags: true,
+      useWebSearch: true,
+      useInternalKb: true
+    },
+    startingPoint: {
+      enabled: false,
+      acronym: undefined
+    },
+    rateLimiting: {
+      enabled: true,
+      requestsPerSecond: 60,
+      burstSize: 10,
+      maxRetries: 3
+    },
+    outputFormat: {
+      includeDefinitions: true,
+      includeDescriptions: true,
+      includeTags: true,
+      includeGrade: true,
+      includeMetadata: true
+    },
+    caching: {
+      enabled: true,
+      ttlSeconds: 3600
+    }
+  },
   autoSave: true,
   historyLimit: 50,
-  theme: 'system',
-  gradeFilter: {
-    enabled: false,
-    min: 1,
-    max: 5
-  },
-  selectiveEnrichment: false,
-  enrichment: {
-    enabled: true,
-    addMissingDefinitions: true,
-    generateDescriptions: true,
-    suggestTags: true,
-    useWebSearch: false,
-    useInternalKb: true
-  },
-  rateLimiting: {
-    enabled: true,
-    requestsPerSecond: 0.5,
-    burstSize: 1,
-    maxRetries: 3
-  },
-  outputFormat: {
-    includeDefinitions: true,
-    includeDescriptions: true,
-    includeTags: true,
-    includeGrade: true,
-    includeMetadata: false
-  },
-  caching: {
-    enabled: true,
-    ttlSeconds: 86400
-  }
+  theme: 'system'
 };
 
 const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
@@ -151,8 +118,8 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
         }
         break;
       case 'batchSize':
-        if (value < 1 || value > 50) {
-          return 'Batch size must be between 1 and 50';
+        if (value < 1 || value > 250) {
+          return 'Batch size must be between 1 and 250';
         }
         break;
       case 'historyLimit':
@@ -223,6 +190,16 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
     }
   };
 
+  const handleProcessingConfigChange = (key: keyof ProcessingConfig, value: any) => {
+    const newProcessingConfig = { ...settings.processingConfig, [key]: value };
+    handleSettingChange('processingConfig', newProcessingConfig);
+  };
+
+  const handleProcessingConfigFieldChange = (section: keyof ProcessingConfig, field: string, value: any) => {
+    const newSection = { ...settings.processingConfig[section], [field]: value };
+    handleProcessingConfigChange(section, newSection);
+  };
+
   const handleToggleExpand = () => {
     setIsExpanded(!isExpanded);
   };
@@ -231,29 +208,29 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
     setActiveTab(tab);
   };
 
-  const handleGradeFilterChange = (key: 'enabled' | 'min' | 'max', value: any) => {
-    const newGradeFilter = { ...settings.gradeFilter, [key]: value };
-    handleSettingChange('gradeFilter', newGradeFilter);
+  const handleGradeFilterChange = (key: 'enabled' | 'singleGrade' | 'gradeRange', value: any) => {
+    const newGradeFilter = { ...settings.processingConfig.gradeFilter, [key]: value };
+    handleProcessingConfigChange('gradeFilter', newGradeFilter);
   };
 
   const handleEnrichmentChange = (key: string, value: any) => {
-    const newEnrichment = { ...settings.enrichment, [key]: value };
-    handleSettingChange('enrichment', newEnrichment);
+    const newEnrichment = { ...settings.processingConfig.enrichment, [key]: value };
+    handleProcessingConfigChange('enrichment', newEnrichment);
   };
 
   const handleRateLimitingChange = (key: string, value: any) => {
-    const newRateLimiting = { ...settings.rateLimiting, [key]: value };
-    handleSettingChange('rateLimiting', newRateLimiting);
+    const newRateLimiting = { ...settings.processingConfig.rateLimiting, [key]: value };
+    handleProcessingConfigChange('rateLimiting', newRateLimiting);
   };
 
   const handleOutputFormatChange = (key: string, value: any) => {
-    const newOutputFormat = { ...settings.outputFormat, [key]: value };
-    handleSettingChange('outputFormat', newOutputFormat);
+    const newOutputFormat = { ...settings.processingConfig.outputFormat, [key]: value };
+    handleProcessingConfigChange('outputFormat', newOutputFormat);
   };
 
   const handleCachingChange = (key: string, value: any) => {
-    const newCaching = { ...settings.caching, [key]: value };
-    handleSettingChange('caching', newCaching);
+    const newCaching = { ...settings.processingConfig.caching, [key]: value };
+    handleProcessingConfigChange('caching', newCaching);
   };
 
   const handleResetToDefaults = () => {
@@ -447,104 +424,84 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                     <h3>Processing Settings</h3>
                     <div className="setting-group">
                       <label>Batch Size</label>
-                      <input 
-                        type="number" 
-                        min="1" 
-                        max="50" 
-                        value={settings.batchSize} 
-                        onChange={(e) => handleSettingChange('batchSize', parseInt(e.target.value))}
+                      <input
+                        type="number"
+                        min="1"
+                        max="250"
+                        value={settings.processingConfig.batchSize}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 1 : parseInt(e.target.value);
+                          if (!isNaN(value) && value >= 1 && value <= 250) {
+                            handleProcessingConfigChange('batchSize', value);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                            handleProcessingConfigChange('batchSize', 1);
+                          }
+                        }}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                       />
-                      {errors.batchSize && <span className="error">{errors.batchSize}</span>}
+                      <p className="mt-1 text-sm text-gray-500">Number of acronyms to process at once (1-250)</p>
                     </div>
+
                     <div className="setting-group">
-                      <label>Grade Filter</label>
-                      <div className="checkbox-group">
-                        <input 
-                          type="checkbox" 
-                          checked={settings.gradeFilter.enabled} 
-                          onChange={(e) => handleGradeFilterChange('enabled', e.target.checked)}
-                        />
-                        <span>Enable Grade Filtering</span>
-                      </div>
-                      {settings.gradeFilter.enabled && (
-                        <div className="sub-settings">
-                          <div className="setting-group">
-                            <label>Min Grade</label>
-                            <input 
-                              type="number" 
-                              min="1" 
-                              max="12" 
-                              value={settings.gradeFilter.min} 
-                              onChange={(e) => handleGradeFilterChange('min', parseInt(e.target.value))}
-                            />
-                          </div>
-                          <div className="setting-group">
-                            <label>Max Grade</label>
-                            <input 
-                              type="number" 
-                              min="1" 
-                              max="12" 
-                              value={settings.gradeFilter.max} 
-                              onChange={(e) => handleGradeFilterChange('max', parseInt(e.target.value))}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <div className="setting-group">
-                      <label>Enrichment</label>
-                      <div className="checkbox-group">
-                        <input 
-                          type="checkbox" 
-                          checked={settings.enrichment.enabled} 
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={settings.processingConfig.enrichment.enabled}
                           onChange={(e) => handleEnrichmentChange('enabled', e.target.checked)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span>Enable Enrichment</span>
-                      </div>
-                      {settings.enrichment.enabled && (
-                        <div className="sub-settings">
-                          <div className="checkbox-group">
-                            <input 
-                              type="checkbox" 
-                              checked={settings.enrichment.addMissingDefinitions} 
-                              onChange={(e) => handleEnrichmentChange('addMissingDefinitions', e.target.checked)}
-                            />
-                            <span>Add Missing Definitions</span>
-                          </div>
-                          <div className="checkbox-group">
-                            <input 
-                              type="checkbox" 
-                              checked={settings.enrichment.generateDescriptions} 
-                              onChange={(e) => handleEnrichmentChange('generateDescriptions', e.target.checked)}
-                            />
-                            <span>Generate Descriptions</span>
-                          </div>
-                          <div className="checkbox-group">
-                            <input 
-                              type="checkbox" 
-                              checked={settings.enrichment.suggestTags} 
-                              onChange={(e) => handleEnrichmentChange('suggestTags', e.target.checked)}
-                            />
-                            <span>Suggest Tags</span>
-                          </div>
-                          <div className="checkbox-group">
-                            <input 
-                              type="checkbox" 
-                              checked={settings.enrichment.useWebSearch} 
-                              onChange={(e) => handleEnrichmentChange('useWebSearch', e.target.checked)}
-                            />
-                            <span>Use Web Search</span>
-                          </div>
-                          <div className="checkbox-group">
-                            <input 
-                              type="checkbox" 
-                              checked={settings.enrichment.useInternalKb} 
-                              onChange={(e) => handleEnrichmentChange('useInternalKb', e.target.checked)}
-                            />
-                            <span>Use Internal Knowledge Base</span>
-                          </div>
+                        <span className="text-sm font-medium text-gray-700">Enable AI Processing</span>
+                      </label>
+                      <div className="ml-6 mt-2 space-y-2">
+                        <div className="checkbox-group">
+                          <input
+                            type="checkbox"
+                            checked={settings.processingConfig.enrichment.addMissingDefinitions}
+                            onChange={(e) => handleEnrichmentChange('addMissingDefinitions', e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>Generate Missing Definitions</span>
                         </div>
-                      )}
+                        <div className="checkbox-group">
+                          <input
+                            type="checkbox"
+                            checked={settings.processingConfig.enrichment.generateDescriptions}
+                            onChange={(e) => handleEnrichmentChange('generateDescriptions', e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>Generate Descriptions</span>
+                        </div>
+                        <div className="checkbox-group">
+                          <input
+                            type="checkbox"
+                            checked={settings.processingConfig.enrichment.suggestTags}
+                            onChange={(e) => handleEnrichmentChange('suggestTags', e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>Suggest Tags</span>
+                        </div>
+                        <div className="checkbox-group">
+                          <input
+                            type="checkbox"
+                            checked={settings.processingConfig.enrichment.useWebSearch}
+                            onChange={(e) => handleEnrichmentChange('useWebSearch', e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>Use Web Search</span>
+                        </div>
+                        <div className="checkbox-group">
+                          <input
+                            type="checkbox"
+                            checked={settings.processingConfig.enrichment.useInternalKb}
+                            onChange={(e) => handleEnrichmentChange('useInternalKb', e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>Use Internal Knowledge Base</span>
+                        </div>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -564,13 +521,13 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                       <div className="checkbox-group">
                         <input 
                           type="checkbox" 
-                          checked={settings.rateLimiting.enabled} 
+                          checked={settings.processingConfig.rateLimiting.enabled} 
                           onChange={(e) => handleRateLimitingChange('enabled', e.target.checked)}
                         />
                         <span>Enable API Rate Limiting</span>
                       </div>
                     </div>
-                    {settings.rateLimiting.enabled && (
+                    {settings.processingConfig.rateLimiting.enabled && (
                       <div className="sub-settings">
                         <div className="setting-group">
                           <label>Requests Per Second</label>
@@ -579,7 +536,7 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                             min="0.1" 
                             max="10" 
                             step="0.1" 
-                            value={settings.rateLimiting.requestsPerSecond} 
+                            value={settings.processingConfig.rateLimiting.requestsPerSecond} 
                             onChange={(e) => handleRateLimitingChange('requestsPerSecond', parseFloat(e.target.value))}
                           />
                           {errors.requestsPerSecond && <span className="error">{errors.requestsPerSecond}</span>}
@@ -590,7 +547,7 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                             type="number" 
                             min="1" 
                             max="10" 
-                            value={settings.rateLimiting.burstSize} 
+                            value={settings.processingConfig.rateLimiting.burstSize} 
                             onChange={(e) => handleRateLimitingChange('burstSize', parseInt(e.target.value))}
                           />
                           {errors.burstSize && <span className="error">{errors.burstSize}</span>}
@@ -601,7 +558,7 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                             type="number" 
                             min="0" 
                             max="10" 
-                            value={settings.rateLimiting.maxRetries} 
+                            value={settings.processingConfig.rateLimiting.maxRetries} 
                             onChange={(e) => handleRateLimitingChange('maxRetries', parseInt(e.target.value))}
                           />
                           {errors.maxRetries && <span className="error">{errors.maxRetries}</span>}
@@ -620,60 +577,53 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                     transition={{ duration: 0.2 }}
                     className="settings-section"
                   >
-                    <h3>Output Format Settings</h3>
+                    <h3>Output Display Settings</h3>
+                    <p className="text-sm text-gray-500 mb-4">Configure which fields to display in the results table</p>
                     <div className="setting-group">
-                      <label>Include Definitions</label>
                       <div className="checkbox-group">
-                        <input 
-                          type="checkbox" 
-                          checked={settings.outputFormat.includeDefinitions} 
+                        <input
+                          type="checkbox"
+                          checked={settings.processingConfig.outputFormat.includeDefinitions}
                           onChange={(e) => handleOutputFormatChange('includeDefinitions', e.target.checked)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span>Include Definitions in Output</span>
+                        <span>Show Definitions Column</span>
                       </div>
-                    </div>
-                    <div className="setting-group">
-                      <label>Include Descriptions</label>
                       <div className="checkbox-group">
-                        <input 
-                          type="checkbox" 
-                          checked={settings.outputFormat.includeDescriptions} 
+                        <input
+                          type="checkbox"
+                          checked={settings.processingConfig.outputFormat.includeDescriptions}
                           onChange={(e) => handleOutputFormatChange('includeDescriptions', e.target.checked)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span>Include Descriptions in Output</span>
+                        <span>Show Descriptions Column</span>
                       </div>
-                    </div>
-                    <div className="setting-group">
-                      <label>Include Tags</label>
                       <div className="checkbox-group">
-                        <input 
-                          type="checkbox" 
-                          checked={settings.outputFormat.includeTags} 
+                        <input
+                          type="checkbox"
+                          checked={settings.processingConfig.outputFormat.includeTags}
                           onChange={(e) => handleOutputFormatChange('includeTags', e.target.checked)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span>Include Tags in Output</span>
+                        <span>Show Tags Column</span>
                       </div>
-                    </div>
-                    <div className="setting-group">
-                      <label>Include Grade</label>
                       <div className="checkbox-group">
-                        <input 
-                          type="checkbox" 
-                          checked={settings.outputFormat.includeGrade} 
+                        <input
+                          type="checkbox"
+                          checked={settings.processingConfig.outputFormat.includeGrade}
                           onChange={(e) => handleOutputFormatChange('includeGrade', e.target.checked)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span>Include Grade in Output</span>
+                        <span>Show Grade Column</span>
                       </div>
-                    </div>
-                    <div className="setting-group">
-                      <label>Include Metadata</label>
                       <div className="checkbox-group">
-                        <input 
-                          type="checkbox" 
-                          checked={settings.outputFormat.includeMetadata} 
+                        <input
+                          type="checkbox"
+                          checked={settings.processingConfig.outputFormat.includeMetadata}
                           onChange={(e) => handleOutputFormatChange('includeMetadata', e.target.checked)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span>Include Metadata in Output</span>
+                        <span>Show Metadata Column</span>
                       </div>
                     </div>
                   </motion.div>
@@ -694,13 +644,13 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                       <div className="checkbox-group">
                         <input 
                           type="checkbox" 
-                          checked={settings.caching.enabled} 
+                          checked={settings.processingConfig.caching.enabled} 
                           onChange={(e) => handleCachingChange('enabled', e.target.checked)}
                         />
                         <span>Enable Response Caching</span>
                       </div>
                     </div>
-                    {settings.caching.enabled && (
+                    {settings.processingConfig.caching.enabled && (
                       <div className="sub-settings">
                         <div className="setting-group">
                           <label>Cache TTL (seconds)</label>
@@ -708,7 +658,7 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                             type="number" 
                             min="60" 
                             max="604800" 
-                            value={settings.caching.ttlSeconds} 
+                            value={settings.processingConfig.caching.ttlSeconds} 
                             onChange={(e) => handleCachingChange('ttlSeconds', parseInt(e.target.value))}
                           />
                           {errors.ttlSeconds && <span className="error">{errors.ttlSeconds}</span>}
@@ -773,6 +723,101 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                         onChange={(e) => handleSettingChange('historyLimit', parseInt(e.target.value))}
                       />
                       {errors.historyLimit && <span className="error">{errors.historyLimit}</span>}
+                    </div>
+                  </motion.div>
+                )}
+
+                {activeTab === 'processing' && (
+                  <motion.div
+                    key="gradeFilter"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
+                    className="settings-section"
+                  >
+                    <h3>Grade Filter Settings</h3>
+                    <div className="setting-group">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={settings.processingConfig.gradeFilter.enabled}
+                          onChange={(e) => handleGradeFilterChange('enabled', e.target.checked)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm font-medium text-gray-700">Enable Grade Filtering</span>
+                      </label>
+                      
+                      {settings.processingConfig.gradeFilter.enabled && (
+                        <div className="mt-2 ml-6 space-y-2">
+                          <div>
+                            <label className="block text-sm text-gray-600">Filter Type</label>
+                            <select
+                              value={settings.processingConfig.gradeFilter.singleGrade !== undefined ? 'single' : 'range'}
+                              onChange={(e) => {
+                                const isSingle = e.target.value === 'single';
+                                handleGradeFilterChange('singleGrade', isSingle ? '' : undefined);
+                                handleGradeFilterChange('gradeRange', isSingle ? undefined : { start: '', end: '' });
+                              }}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            >
+                              <option value="single">Single Grade</option>
+                              <option value="range">Grade Range</option>
+                            </select>
+                          </div>
+
+                          {settings.processingConfig.gradeFilter.singleGrade !== undefined ? (
+                            <div>
+                              <label className="block text-sm text-gray-600">Grade</label>
+                              <input
+                                type="text"
+                                value={settings.processingConfig.gradeFilter.singleGrade || ''}
+                                onChange={(e) => handleGradeFilterChange('singleGrade', e.target.value)}
+                                className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+                                  errors.singleGrade ? 'border-red-500' : ''
+                                }`}
+                              />
+                              {errors.singleGrade && (
+                                <p className="mt-1 text-sm text-red-600">{errors.singleGrade}</p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div>
+                                <label className="block text-sm text-gray-600">Start Grade</label>
+                                <input
+                                  type="text"
+                                  value={settings.processingConfig.gradeFilter.gradeRange?.start || ''}
+                                  onChange={(e) => handleGradeFilterChange('gradeRange', {
+                                    ...settings.processingConfig.gradeFilter.gradeRange,
+                                    start: e.target.value
+                                  })}
+                                  className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+                                    errors.gradeRange ? 'border-red-500' : ''
+                                  }`}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm text-gray-600">End Grade</label>
+                                <input
+                                  type="text"
+                                  value={settings.processingConfig.gradeFilter.gradeRange?.end || ''}
+                                  onChange={(e) => handleGradeFilterChange('gradeRange', {
+                                    ...settings.processingConfig.gradeFilter.gradeRange,
+                                    end: e.target.value
+                                  })}
+                                  className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+                                    errors.gradeRange ? 'border-red-500' : ''
+                                  }`}
+                                />
+                              </div>
+                              {errors.gradeRange && (
+                                <p className="mt-1 text-sm text-red-600">{errors.gradeRange}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
