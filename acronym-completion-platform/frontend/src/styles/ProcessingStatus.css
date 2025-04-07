@@ -1,18 +1,105 @@
 .processing-status-container {
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 1.5rem;
-  background-color: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin: 20px 0;
 }
 
 .status-content {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 15px;
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.status-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.2em;
+}
+
+.status-indicator {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.status-indicator.processing {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.status-indicator.error {
+  background-color: #ffebee;
+  color: #d32f2f;
+}
+
+.status-indicator.complete {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.progress-bar-container {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: #2196f3;
+  transition: width 0.3s ease-in-out;
+}
+
+.progress-text {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8em;
+  color: #666;
+}
+
+.status-message {
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: #666;
+  background-color: #f5f5f5;
+}
+
+.status-message.error {
+  background-color: #ffebee;
+  color: #d32f2f;
+  border-left: 4px solid #d32f2f;
+}
+
+/* Animation for processing state */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.status-indicator.processing {
+  animation: pulse 2s infinite;
 }
 
 .file-status {
@@ -49,42 +136,6 @@
 .status-value.pending {
   background-color: #f3f4f6;
   color: #6b7280;
-}
-
-.progress-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.progress-bar {
-  height: 0.5rem;
-  background-color: #f3f4f6;
-  border-radius: 9999px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background-color: #3b82f6;
-  border-radius: 9999px;
-}
-
-.progress-details {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.progress-text {
-  font-weight: 600;
-  color: #3b82f6;
-}
-
-.status-message {
-  font-size: 0.875rem;
-  color: #6b7280;
-  font-style: italic;
 }
 
 .error-message {

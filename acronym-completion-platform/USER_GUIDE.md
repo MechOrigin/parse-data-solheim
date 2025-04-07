@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The Acronym Completion Platform is a web application that helps you automatically generate definitions, descriptions, and tags for acronyms. It uses advanced AI models (Grok and Gemini) to enrich your acronym datasets with comprehensive information.
+The Acronym Completion Platform is a web application that helps you automatically generate definitions, descriptions, and tags for acronyms. It uses advanced AI models (Grok and Gemini) to enrich your acronym datasets with comprehensive information. The platform utilizes the free unlimited Gemini 1.0 Pro model for AI processing.
 
 ## Getting Started
 
@@ -51,6 +51,23 @@ The Acronym Completion Platform is a web application that helps you automaticall
    ```
 
 6. Open your browser and navigate to `http://localhost:3000`
+
+## Environment Setup
+
+1. Create a `.env` file in the root directory with the following variables:
+
+```env
+GEMINI_API_KEY_1=AIzaSyCZqWALaH7rxtl55oPps8njy6rG4SJRllo
+GEMINI_API_KEY_2=AIzaSyCEoUdTaxCqi4NZnLKwzPUOTnKitFBp53s
+GEMINI_API_KEY_3=AIzaSyBde09qqU4WrwVCjADP7CTskOBY6quPW-4
+GEMINI_API_KEY_4=AIzaSyBdB3wmrVQYH2BGmQwj25gExBrQuw_tgGA
+GEMINI_API_KEY_5=AIzaSyCUMBnz6aEjrMKmzKsUquIAstbOTV3iLq5
+GROK_API_KEY=your_grok_api_key
+NEXT_PUBLIC_API_URL=http://localhost:8000
+SECRET_KEY=your_secret_key
+```
+
+The system uses multiple Gemini API keys for load balancing and quota management. You can provide up to 5 different API keys.
 
 ## Using the Platform
 
@@ -159,7 +176,7 @@ You can process only acronyms with specific grades by:
 
 ### Customizing AI Responses
 
-The platform uses a carefully crafted prompt to generate consistent responses. If you need to modify the AI's output style:
+The platform uses a carefully crafted prompt to generate consistent responses. The Gemini 1.0 Pro model (free unlimited) is used for all AI processing. If you need to modify the AI's output style:
 
 1. Contact the development team to discuss custom prompt engineering
 2. Provide examples of the desired output format

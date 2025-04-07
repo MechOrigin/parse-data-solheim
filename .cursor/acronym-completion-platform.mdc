@@ -3,7 +3,7 @@ description:
 globs: 
 alwaysApply: true
 ---
- # Acronym Completion Platform Rules
+# Acronym Completion Platform Rules
 
 ## Project Structure
 - Frontend: Next.js application in `/frontend`

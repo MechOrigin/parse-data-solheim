@@ -8,7 +8,7 @@ from typing import List, Optional
 import json
 from dotenv import load_dotenv
 from ai_service import AIService
-from grok_service import GrokService
+from api_key_manager import APIKeyManager
 from auth import (
     Token, User, authenticate_user, create_access_token, 
     get_current_active_user, fake_users_db, ACCESS_TOKEN_EXPIRE_MINUTES
@@ -17,17 +17,24 @@ from datetime import timedelta
 from monitoring import track_performance, track_api_call, get_performance_metrics, save_metrics_to_file
 import numpy as np
 import traceback
+import time
 
 # Load environment variables
 load_dotenv()
 
+# Initialize API key manager
+api_key_manager = APIKeyManager()
+
 class ProcessingConfig:
     def __init__(self):
-        self.llm = "gemini"  # Default to Gemini
-        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
-        self.grok_api_key = os.getenv("GROK_API_KEY", "")
-        
-        self.batch_size = 250  # Default batch size
+        self.gemini_api_keys = [
+            os.getenv("GEMINI_API_KEY_1", ""),
+            os.getenv("GEMINI_API_KEY_2", ""),
+            os.getenv("GEMINI_API_KEY_3", ""),
+            os.getenv("GEMINI_API_KEY_4", ""),
+            os.getenv("GEMINI_API_KEY_5", "")
+        ]
+        self.batch_size = 25  # Default batch size
         
         self.grade_filter = {
             "enabled": False,
@@ -70,14 +77,7 @@ class ProcessingConfig:
         }
 
     def update(self, config: dict):
-        self.llm = config.get("selectedLLM", self.llm)
-        # Only update API keys if they are provided in the config
-        if "geminiApiKey" in config:
-            self.gemini_api_key = config["geminiApiKey"]
-            os.environ["GEMINI_API_KEY"] = self.gemini_api_key
-        if "grokApiKey" in config:
-            self.grok_api_key = config["grokApiKey"]
-            os.environ["GROK_API_KEY"] = self.grok_api_key
+        self.gemini_api_keys = config.get("geminiApiKeys", self.gemini_api_keys)
         
         # Update processing config
         processing_config = config.get("processingConfig", {})
@@ -137,7 +137,6 @@ app.add_middleware(
 # Initialize AI services
 processing_config = ProcessingConfig()
 gemini_service = AIService(config=processing_config)
-grok_service = GrokService()
 
 # Authentication endpoints
 @app.post("/token", response_model=Token)
@@ -244,114 +243,122 @@ async def process_files(current_user: User = Depends(get_current_active_user)):
         
         # Read the acronyms file
         df = pd.read_csv("acronyms.csv", header=None)
-        acronyms = df[0].tolist()  # Assuming acronyms are in the first column
+        all_acronyms = df[0].tolist()  # Assuming acronyms are in the first column
         
-        # Process acronyms in batches
-        results = []
+        # Only take the specified batch size
         batch_size = processing_config.batch_size
+        acronyms = all_acronyms[:batch_size]  # Only take the first batch_size acronyms
+        
+        print(f"Processing {len(acronyms)} acronyms out of {len(all_acronyms)} total")
+        
+        # Check API key status before processing
+        available_keys = [k for k in api_key_manager.api_keys 
+                         if time.time() >= api_key_manager.key_quota_reset.get(k, 0)]
+        
+        if not available_keys:
+            # If no keys are available, reset the quota for the least recently used key
+            least_recent_key = min(api_key_manager.api_keys, 
+                                 key=lambda k: api_key_manager.key_last_used.get(k, 0))
+            api_key_manager.key_quota_reset[least_recent_key] = 0
+            print(f"All keys in quota reset, resetting quota for key: {least_recent_key[:10]}...")
+            available_keys = [least_recent_key]
+        
+        print(f"Available API keys: {len(available_keys)} out of {len(api_key_manager.api_keys)}")
+        
+        # Process acronyms
+        results = []
         quota_exhausted = False
+        processed_count = 0
+        total_count = len(acronyms)
+        api_key_issues = False
         
-        for i in range(0, len(acronyms), batch_size):
-            batch = acronyms[i:i + batch_size]
-            batch_results = []
-            
-            for acronym in batch:
+        for acronym in acronyms:
+            try:
+                print(f"Processing acronym {processed_count + 1}/{total_count}: {acronym}")
+                
+                # Skip processing if quota is exhausted
+                if quota_exhausted:
+                    print(f"Skipping {acronym} - API quota exhausted")
+                    results.append({
+                        "acronym": acronym,
+                        "definition": "Processing skipped - API quota exhausted",
+                        "enrichment": {"description": "Processing skipped - API quota exhausted", "tags": "quota_exhausted"}
+                    })
+                    processed_count += 1
+                    continue
+                
+                # Get definition based on selected LLM
                 try:
-                    # Skip processing if quota is exhausted
-                    if quota_exhausted:
-                        batch_results.append({
-                            "acronym": acronym,
-                            "definition": "Processing skipped - API quota exhausted",
-                            "enrichment": {"description": "Processing skipped - API quota exhausted", "tags": "quota_exhausted"}
-                        })
-                        continue
-                    
-                    # Get definition based on selected LLM
-                    if processing_config.llm == "grok":
-                        if not processing_config.grok_api_key:
-                            print(f"Grok API key not set, falling back to Gemini for {acronym}")
-                            try:
-                                definition = await gemini_service.get_definition(acronym)
-                            except Exception as e:
-                                if "quota" in str(e).lower() or "429" in str(e):
-                                    quota_exhausted = True
-                                    definition = "Processing skipped - API quota exhausted"
-                                else:
-                                    definition = f"Error: {str(e)}"
-                        else:
-                            try:
-                                definition = await grok_service.get_definition(acronym)
-                            except Exception as e:
-                                print(f"Error with Grok API for {acronym}, falling back to Gemini: {str(e)}")
-                                try:
-                                    definition = await gemini_service.get_definition(acronym)
-                                except Exception as gemini_error:
-                                    if "quota" in str(gemini_error).lower() or "429" in str(gemini_error):
-                                        quota_exhausted = True
-                                        definition = "Processing skipped - API quota exhausted"
-                                    else:
-                                        definition = f"Error: {str(gemini_error)}"
-                    else:
-                        try:
-                            definition = await gemini_service.get_definition(acronym)
-                        except Exception as e:
-                            if "quota" in str(e).lower() or "429" in str(e):
-                                quota_exhausted = True
-                                definition = "Processing skipped - API quota exhausted"
-                            else:
-                                definition = f"Error: {str(e)}"
-                    
-                    # Enrich acronym if enabled and quota not exhausted
-                    enrichment = None
-                    if processing_config.enrichment["enabled"] and not quota_exhausted:
-                        if processing_config.llm == "grok":
-                            if not processing_config.grok_api_key:
-                                print(f"Grok API key not set, skipping enrichment for {acronym}")
-                                enrichment = {"description": "Enrichment disabled - Grok API key not set", "tags": "disabled"}
-                            else:
-                                try:
-                                    enrichment = await grok_service.enrich_acronym(acronym, definition)
-                                except Exception as e:
-                                    print(f"Error with Grok API enrichment for {acronym}, skipping enrichment: {str(e)}")
-                                    enrichment = {"description": f"Enrichment error: {str(e)}", "tags": "error"}
-                        else:
-                            try:
-                                enrichment = await gemini_service.enrich_acronym(acronym, definition)
-                            except Exception as e:
-                                if "quota" in str(e).lower() or "429" in str(e):
-                                    quota_exhausted = True
-                                    enrichment = {"description": "Enrichment skipped - API quota exhausted", "tags": "quota_exhausted"}
-                                else:
-                                    enrichment = {"description": f"Enrichment error: {str(e)}", "tags": "error"}
-                    elif quota_exhausted:
-                        enrichment = {"description": "Enrichment skipped - API quota exhausted", "tags": "quota_exhausted"}
-                    
-                    batch_results.append({
-                        "acronym": acronym,
-                        "definition": definition,
-                        "enrichment": enrichment
-                    })
+                    definition = await gemini_service.get_definition(acronym)
                 except Exception as e:
-                    print(f"Error processing acronym {acronym}: {str(e)}")
-                    batch_results.append({
-                        "acronym": acronym,
-                        "definition": f"Error: {str(e)}",
-                        "enrichment": None
-                    })
-            
-            results.extend(batch_results)
-            
-            # If quota is exhausted, add a message to the results
-            if quota_exhausted:
+                    print(f"Error with Gemini API for {acronym}: {str(e)}")
+                    if "quota" in str(e).lower() or "429" in str(e):
+                        quota_exhausted = True
+                        definition = "Processing skipped - API quota exhausted"
+                    elif "API key not valid" in str(e) or "400" in str(e) or "401" in str(e):
+                        api_key_issues = True
+                        definition = "Processing skipped - API key issues"
+                    else:
+                        definition = f"Error: {str(e)}"
+                
+                # Enrich acronym if enabled and quota not exhausted
+                enrichment = None
+                if processing_config.enrichment["enabled"] and not quota_exhausted and not api_key_issues:
+                    try:
+                        enrichment = await gemini_service.enrich_acronym(acronym, definition)
+                    except Exception as e:
+                        print(f"Error with Gemini API enrichment for {acronym}: {str(e)}")
+                        if "quota" in str(e).lower() or "429" in str(e):
+                            quota_exhausted = True
+                            enrichment = {"description": "Enrichment skipped - API quota exhausted", "tags": "quota_exhausted"}
+                        elif "API key not valid" in str(e) or "400" in str(e) or "401" in str(e):
+                            api_key_issues = True
+                            enrichment = {"description": "Enrichment skipped - API key issues", "tags": "api_key_issues"}
+                        else:
+                            enrichment = {"description": f"Enrichment error: {str(e)}", "tags": "error"}
+                elif quota_exhausted:
+                    enrichment = {"description": "Enrichment skipped - API quota exhausted", "tags": "quota_exhausted"}
+                elif api_key_issues:
+                    enrichment = {"description": "Enrichment skipped - API key issues", "tags": "api_key_issues"}
+                
                 results.append({
-                    "acronym": "QUOTA_EXHAUSTED",
-                    "definition": "API quota has been exhausted. Remaining acronyms will be skipped.",
-                    "enrichment": {"description": "Processing stopped due to API quota exhaustion", "tags": "quota_exhausted"}
+                    "acronym": acronym,
+                    "definition": definition,
+                    "enrichment": enrichment
                 })
-                break
+                
+                processed_count += 1
+                print(f"Successfully processed {processed_count}/{total_count} acronyms")
+                
+            except Exception as e:
+                print(f"Error processing acronym {acronym}: {str(e)}")
+                results.append({
+                    "acronym": acronym,
+                    "definition": f"Error: {str(e)}",
+                    "enrichment": None
+                })
+                processed_count += 1
         
-        return {"results": results}
+        # Add appropriate message to the results
+        if quota_exhausted:
+            print("API quota has been exhausted. Remaining acronyms will be skipped.")
+            results.append({
+                "acronym": "QUOTA_EXHAUSTED",
+                "definition": "API quota has been exhausted. Remaining acronyms will be skipped.",
+                "enrichment": {"description": "Processing stopped due to API quota exhaustion", "tags": "quota_exhausted"}
+            })
+        elif api_key_issues:
+            print("API key issues detected. Some acronyms may not have been processed correctly.")
+            results.append({
+                "acronym": "API_KEY_ISSUES",
+                "definition": "API key issues detected. Some acronyms may not have been processed correctly.",
+                "enrichment": {"description": "Processing stopped due to API key issues", "tags": "api_key_issues"}
+            })
+        
+        print(f"Processing complete. Processed {processed_count}/{total_count} acronyms.")
+        return {"results": results, "processed_count": processed_count, "total_count": total_count}
     except Exception as e:
+        print(f"Error in process_files: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/download-results")

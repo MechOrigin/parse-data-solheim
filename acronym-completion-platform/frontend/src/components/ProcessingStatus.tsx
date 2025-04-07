@@ -19,31 +19,47 @@ const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
   progress,
   error,
 }) => {
-  const [currentStep, setCurrentStep] = useState<ProcessingStep>('idle');
+  const [currentStep, setCurrentStep] = useState<string>('Initializing');
   const [statusMessage, setStatusMessage] = useState<string>('');
 
-  // Update the current step and status message based on progress
   useEffect(() => {
-    if (!isProcessing) {
-      setCurrentStep('idle');
-      setStatusMessage('');
-      return;
-    }
-
-    if (progress < 20) {
-      setCurrentStep('uploading');
-      setStatusMessage('Uploading and validating files...');
-    } else if (progress < 40) {
-      setCurrentStep('parsing');
-      setStatusMessage('Parsing acronyms from files...');
-    } else if (progress < 80) {
-      setCurrentStep('enriching');
-      setStatusMessage('Enriching acronyms with AI models...');
-    } else {
-      setCurrentStep('completing');
-      setStatusMessage('Finalizing results...');
+    if (isProcessing) {
+      if (progress === 0) {
+        setCurrentStep('Initializing');
+        setStatusMessage('Setting up processing...');
+      } else if (progress < 25) {
+        setCurrentStep('Processing');
+        setStatusMessage('Starting acronym processing...');
+      } else if (progress < 50) {
+        setCurrentStep('Processing');
+        setStatusMessage('Processing acronyms...');
+      } else if (progress < 75) {
+        setCurrentStep('Processing');
+        setStatusMessage('Continuing acronym processing...');
+      } else if (progress < 100) {
+        setCurrentStep('Finalizing');
+        setStatusMessage('Finalizing results...');
+      } else {
+        setCurrentStep('Complete');
+        setStatusMessage('Processing complete!');
+      }
     }
   }, [isProcessing, progress]);
+
+  useEffect(() => {
+    if (error) {
+      if (error.includes('API key issues')) {
+        setCurrentStep('Error');
+        setStatusMessage('API key issues detected. Please check your API keys.');
+      } else if (error.includes('quota has been exhausted')) {
+        setCurrentStep('Error');
+        setStatusMessage('API quota exhausted. Please try again later.');
+      } else {
+        setCurrentStep('Error');
+        setStatusMessage(error);
+      }
+    }
+  }, [error]);
 
   const steps: { id: ProcessingStep; label: string }[] = [
     { id: 'uploading', label: 'Upload' },
@@ -60,6 +76,13 @@ const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
       className="processing-status-container"
     >
       <div className="status-content">
+        <div className="status-header">
+          <h3>Processing Status</h3>
+          <span className={`status-indicator ${isProcessing ? 'processing' : error ? 'error' : 'complete'}`}>
+            {currentStep}
+          </span>
+        </div>
+        
         <div className="file-status">
           <div className="status-item">
             <span className="status-label">Template File:</span>
@@ -98,58 +121,22 @@ const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
                     )}
                   </div>
                   <span className="step-label">{step.label}</span>
-                  {index < steps.length - 1 && (
-                    <div 
-                      className={`step-connector ${
-                        steps.findIndex(s => s.id === currentStep) > index ? 'completed' : ''
-                      }`}
-                    />
-                  )}
                 </div>
               ))}
             </div>
-
-            <div className="progress-container">
-              <div className="progress-bar">
-                <motion.div
-                  className="progress-fill"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                  transition={{ duration: 0.5 }}
-                  role="progressbar"
-                  aria-valuenow={progress}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                />
-              </div>
-              <div className="progress-details">
-                <span className="progress-text">{progress}%</span>
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={statusMessage}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
-                    className="status-message"
-                  >
-                    {statusMessage}
-                  </motion.span>
-                </AnimatePresence>
-              </div>
+            <div className="progress-bar-container">
+              <div 
+                className="progress-bar" 
+                style={{ width: `${progress}%` }}
+              />
+              <span className="progress-text">{Math.round(progress)}%</span>
             </div>
           </>
         )}
 
-        {error && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="error-message"
-          >
-            {error}
-          </motion.div>
-        )}
+        <div className={`status-message ${error ? 'error' : ''}`}>
+          {statusMessage}
+        </div>
       </div>
     </motion.div>
   );

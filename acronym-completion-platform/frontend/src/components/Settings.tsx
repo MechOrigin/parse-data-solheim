@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import '../styles/Settings.css';
 import { useTheme } from './ThemeProvider';
 import { SettingsState, ProcessingConfig } from '../types';
+import { toast } from 'react-hot-toast';
 
 interface SettingsProps {
-  onSettingsChange: (settings: SettingsState) => void;
+  onSave: (settings: SettingsState) => void;
 }
 
 interface TooltipProps {
@@ -26,12 +27,14 @@ const defaultSettings: SettingsState = {
   temperature: 0.7,
   maxTokens: 1000,
   model: 'gemini',
-  geminiApiKey: '',
+  geminiApiKeys: [''],
   grokApiKey: '',
   processingConfig: {
     batchSize: 250,
     gradeFilter: {
       enabled: false,
+      min: 1,
+      max: 12,
       singleGrade: undefined,
       gradeRange: undefined
     },
@@ -70,13 +73,13 @@ const defaultSettings: SettingsState = {
   theme: 'system'
 };
 
-const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
+export const Settings: React.FC<SettingsProps> = ({ onSave }) => {
+  const { theme, setTheme } = useTheme();
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'ai' | 'processing' | 'appearance' | 'advanced' | 'rateLimiting' | 'output' | 'caching'>('ai');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const { theme, setTheme } = useTheme();
 
   // Load settings from localStorage on component mount
   useEffect(() => {
@@ -102,8 +105,8 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
   // Save settings to localStorage when they change
   useEffect(() => {
     localStorage.setItem('acronymSettings', JSON.stringify(settings));
-    onSettingsChange(settings);
-  }, [settings, onSettingsChange]);
+    onSave(settings);
+  }, [settings, onSave]);
 
   const validateSetting = (name: string, value: any): string | undefined => {
     switch (name) {
@@ -151,7 +154,8 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
         if (value < 1 || value > 12) {
           return 'Min grade must be between 1 and 12';
         }
-        if (value > settings.gradeFilter.max) {
+        const maxGrade = settings.processingConfig.gradeFilter.max;
+        if (maxGrade !== undefined && value > maxGrade) {
           return 'Min grade cannot be greater than max grade';
         }
         break;
@@ -159,7 +163,8 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
         if (value < 1 || value > 12) {
           return 'Max grade must be between 1 and 12';
         }
-        if (value < settings.gradeFilter.min) {
+        const minGrade = settings.processingConfig.gradeFilter.min;
+        if (minGrade !== undefined && value < minGrade) {
           return 'Max grade cannot be less than min grade';
         }
         break;
@@ -196,8 +201,12 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
   };
 
   const handleProcessingConfigFieldChange = (section: keyof ProcessingConfig, field: string, value: any) => {
-    const newSection = { ...settings.processingConfig[section], [field]: value };
-    handleProcessingConfigChange(section, newSection);
+    const newProcessingConfig = { ...settings.processingConfig };
+    const currentSection = newProcessingConfig[section] as Record<string, any>;
+    if (currentSection) {
+      currentSection[field] = value;
+      handleSettingChange('processingConfig', newProcessingConfig);
+    }
   };
 
   const handleToggleExpand = () => {
@@ -291,12 +300,35 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
     tab.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleSave = async () => {
+    try {
+      const response = await fetch('/api/update-config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(settings)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save settings');
+      }
+
+      toast.success('Settings saved successfully');
+      onSave(settings);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast.error('Failed to save settings');
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="settings-container"
+      className={`settings-container ${theme}`}
     >
       <div className="settings-header" onClick={handleToggleExpand}>
         <h2>Settings</h2>
@@ -370,7 +402,7 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
                   >
                     <h3>AI Model Settings</h3>
                     <div className="setting-group">
-                      <Tooltip text="Choose between Gemini and Grok AI models">
+                      <Tooltip text="Choose the AI model for processing">
                         <label>Model</label>
                       </Tooltip>
                       <select 
@@ -826,6 +858,10 @@ const Settings: React.FC<SettingsProps> = ({ onSettingsChange }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <button onClick={handleSave} className="save-button">
+        Save Settings
+      </button>
     </motion.div>
   );
 };

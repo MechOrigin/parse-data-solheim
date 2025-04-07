@@ -40,9 +40,48 @@ export default function Home() {
   const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<Result[]>([]);
-  const [settings, setSettings] = useState({
-    temperature: 0.7,
-    maxTokens: 1000
+  const [settings, setSettings] = useState<SettingsState>({
+    geminiApiKeys: [''],
+    processingConfig: {
+      batchSize: 25,
+      gradeFilter: {
+        enabled: false,
+        singleGrade: null,
+        gradeRange: null
+      },
+      enrichment: {
+        enabled: true,
+        addMissingDefinitions: true,
+        generateDescriptions: true,
+        suggestTags: true,
+        useWebSearch: true,
+        useInternalKb: true
+      },
+      startingPoint: {
+        enabled: false,
+        acronym: null
+      },
+      rateLimiting: {
+        enabled: true,
+        requestsPerMinute: 60,
+        burstSize: 10,
+        maxRetries: 3
+      },
+      outputFormat: {
+        includeDefinitions: true,
+        includeDescriptions: true,
+        includeTags: true,
+        includeGrade: true,
+        includeMetadata: true
+      },
+      caching: {
+        enabled: true,
+        ttlSeconds: 3600
+      }
+    },
+    autoSave: true,
+    historyLimit: 100,
+    theme: 'light'
   });
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showHistory, setShowHistory] = useState<boolean>(false);
@@ -74,10 +113,29 @@ export default function Home() {
       });
   }, []);
 
-  const handleLogin = (token: string) => {
-    setAuthToken(token);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('authToken', token);
+  const handleLogin = async (username: string, password: string) => {
+    try {
+      const response = await fetch('http://localhost:8000/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          username,
+          password,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Login failed');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('authToken', data.access_token);
+      setAuthToken(data.access_token);
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
     }
   };
 
@@ -150,33 +208,6 @@ export default function Home() {
 
   const handleSettingsChange = (newSettings: SettingsState) => {
     setSettings(newSettings);
-    
-    // Update backend configuration
-    fetch('http://localhost:8000/update-config', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`,
-      },
-      body: JSON.stringify({
-        selectedLLM: newSettings.model,
-        geminiApiKey: newSettings.geminiApiKey,
-        grokApiKey: newSettings.grokApiKey,
-        processingConfig: newSettings.processingConfig
-      }),
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('Failed to update configuration');
-      }
-      return response.json();
-    })
-    .then(data => {
-      console.log('Configuration updated successfully:', data);
-    })
-    .catch(error => {
-      console.error('Error updating configuration:', error);
-    });
   };
 
   const handleDeleteHistory = (id: string) => {
@@ -187,51 +218,33 @@ export default function Home() {
     }
   };
 
-  const processAcronyms = async () => {
-    if (!templateFile || !acronymsFile) {
-      toast.error('Please upload both template and acronyms files');
-      return;
-    }
-
-    setIsProcessing(true);
-    setProgress(0);
-    setError(null);
-
+  const handleProcess = async () => {
     try {
-      const formData = new FormData();
-      formData.append('template_file', templateFile);
-      formData.append('acronyms_file', acronymsFile);
+      setIsProcessing(true);
+      setProgress(0);
+      setError(null);
 
-      const response = await fetch('http://localhost:8000/process', {
+      const response = await fetch('/api/process', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: formData,
+        body: JSON.stringify({
+          geminiApiKeys: settings.geminiApiKeys,
+          processingConfig: settings.processingConfig
+        })
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to process acronyms');
+        throw new Error('Failed to process acronyms');
       }
 
       const data = await response.json();
-      const processedResults: Result[] = data.results.map((result: any) => ({
-        id: result.id || crypto.randomUUID(),
-        acronym: result.acronym,
-        definition: result.definition,
-        description: result.description || '',
-        tags: result.tags || [],
-        grade: result.grade || 1,
-        metadata: result.metadata || {}
-      }));
-
-      setResults(processedResults);
-      toast.success('Acronyms processed successfully!');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-      setError(errorMessage);
-      toast.error(`Failed to process acronyms: ${errorMessage}`);
+      setResults(data.results);
+    } catch (error) {
+      console.error('Error processing acronyms:', error);
+      setError(error instanceof Error ? error.message : 'An error occurred');
     } finally {
       setIsProcessing(false);
       setProgress(100);
@@ -407,7 +420,9 @@ export default function Home() {
             </button>
           </div>
           {showSettings && (
-            <Settings onSettingsChange={handleSettingsChange} />
+            <Settings
+              onSave={handleSettingsChange}
+            />
           )}
         </section>
 
@@ -427,7 +442,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="process-button"
-            onClick={processAcronyms}
+            onClick={handleProcess}
             style={{
               position: 'fixed',
               bottom: '2rem',

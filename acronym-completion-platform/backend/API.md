@@ -150,5 +150,6 @@ Required columns:
 
 - All file uploads must be in CSV format
 - The API supports both Grok and Gemini AI models for processing
+- The Gemini model used is the free unlimited Gemini 1.0 Pro model
 - Batch processing is configurable through the update-config endpoint
 - Results are stored temporarily and can be downloaded through the download-results endpoint 

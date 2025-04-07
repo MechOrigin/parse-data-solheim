@@ -12,11 +12,8 @@ export interface ProcessingConfig {
   batchSize: number;
   gradeFilter: {
     enabled: boolean;
-    singleGrade?: string;
-    gradeRange?: {
-      start: string;
-      end: string;
-    };
+    singleGrade: number | null;
+    gradeRange: [number, number] | null;
   };
   enrichment: {
     enabled: boolean;
@@ -28,11 +25,11 @@ export interface ProcessingConfig {
   };
   startingPoint: {
     enabled: boolean;
-    acronym?: string;
+    acronym: string | null;
   };
   rateLimiting: {
     enabled: boolean;
-    requestsPerSecond: number;
+    requestsPerMinute: number;
     burstSize: number;
     maxRetries: number;
   };
@@ -50,16 +47,47 @@ export interface ProcessingConfig {
 }
 
 export interface SettingsState {
-  temperature: number;
-  maxTokens: number;
-  model: 'grok' | 'gemini';
-  geminiApiKey?: string;
-  grokApiKey?: string;
-  processingConfig: ProcessingConfig;
+  geminiApiKeys: string[];
+  processingConfig: {
+    batchSize: number;
+    gradeFilter: {
+      enabled: boolean;
+      singleGrade: number | null;
+      gradeRange: [number, number] | null;
+    };
+    enrichment: {
+      enabled: boolean;
+      addMissingDefinitions: boolean;
+      generateDescriptions: boolean;
+      suggestTags: boolean;
+      useWebSearch: boolean;
+      useInternalKb: boolean;
+    };
+    startingPoint: {
+      enabled: boolean;
+      acronym: string | null;
+    };
+    rateLimiting: {
+      enabled: boolean;
+      requestsPerMinute: number;
+      burstSize: number;
+      maxRetries: number;
+    };
+    outputFormat: {
+      includeDefinitions: boolean;
+      includeDescriptions: boolean;
+      includeTags: boolean;
+      includeGrade: boolean;
+      includeMetadata: boolean;
+    };
+    caching: {
+      enabled: boolean;
+      ttlSeconds: number;
+    };
+  };
   autoSave: boolean;
   historyLimit: number;
-  theme: 'light' | 'dark' | 'system';
-  isOpen?: boolean;
+  theme: 'light' | 'dark';
 }
 
 export interface FileUploadProps {
@@ -84,4 +112,45 @@ export interface ResultsProps {
 export interface HistoryProps {
   onSelectHistory: (history: Result[]) => void;
   onDeleteHistory: (id: string) => void;
+}
+
+export interface Settings {
+  geminiApiKeys: string[];
+  processingConfig: {
+    batchSize: number;
+    gradeFilter: {
+      enabled: boolean;
+      singleGrade: number | null;
+      gradeRange: [number, number] | null;
+    };
+    enrichment: {
+      enabled: boolean;
+      addMissingDefinitions: boolean;
+      generateDescriptions: boolean;
+      suggestTags: boolean;
+      useWebSearch: boolean;
+      useInternalKb: boolean;
+    };
+    startingPoint: {
+      enabled: boolean;
+      acronym: string | null;
+    };
+    rateLimiting: {
+      enabled: boolean;
+      requestsPerMinute: number;
+      burstSize: number;
+      maxRetries: number;
+    };
+    outputFormat: {
+      includeDefinitions: boolean;
+      includeDescriptions: boolean;
+      includeTags: boolean;
+      includeGrade: boolean;
+      includeMetadata: boolean;
+    };
+    caching: {
+      enabled: boolean;
+      ttlSeconds: number;
+    };
+  };
 } 

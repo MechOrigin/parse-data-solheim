@@ -8,9 +8,11 @@ import google.generativeai as genai
 from pathlib import Path
 import aiohttp
 from tqdm import tqdm
-from validators import AcronymValidator
-from .api_key_cluster import APIKeyCluster
+from src.acronym_processor.validators import AcronymValidator
+from src.acronym_processor.api_key_cluster import APIKeyCluster
 import random
+import os
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(
@@ -21,20 +23,20 @@ logger = logging.getLogger(__name__)
 
 class AsyncGeminiAcronymProcessor:
     """
-    An asynchronous class to process acronyms using Google's Gemini API with multiple API keys
-    and rate limiting.
+    An asynchronous class to process acronyms using Google's Gemini API with load balancing
+    across multiple API keys.
     """
     
     def __init__(
         self,
         output_dir: str = "output/acronyms",
-        max_retries: int = 3,
-        requests_per_minute: int = 60,
-        max_concurrent: int = 5,
-        validate_results: bool = True,
-        min_description_length: int = 20,
-        min_related_terms: int = 1,
-        daily_limit: int = 60
+        max_retries: Optional[int] = None,
+        requests_per_minute: Optional[int] = None,
+        max_concurrent: Optional[int] = None,
+        validate_results: Optional[bool] = None,
+        min_description_length: Optional[int] = None,
+        min_related_terms: Optional[int] = None,
+        daily_limit: Optional[int] = None
     ):
         """
         Initialize the AsyncGeminiAcronymProcessor.
@@ -49,25 +51,35 @@ class AsyncGeminiAcronymProcessor:
             min_related_terms (int): Minimum number of related terms
             daily_limit (int): Maximum requests per day per API key
         """
+        # Load environment variables
+        load_dotenv()
+        
+        # Get configuration from environment variables
+        self.max_retries = max_retries or int(os.getenv('MAX_RETRIES', '3'))
+        self.requests_per_minute = requests_per_minute or int(os.getenv('RATE_LIMIT_PER_KEY', '60'))
+        self.max_concurrent = max_concurrent or int(os.getenv('MAX_CONCURRENT_REQUESTS', '5'))
+        self.validate_results = validate_results if validate_results is not None else os.getenv('VALIDATE_RESULTS', 'true').lower() == 'true'
+        self.min_description_length = min_description_length or int(os.getenv('MIN_DESCRIPTION_LENGTH', '20'))
+        self.min_related_terms = min_related_terms or int(os.getenv('MIN_RELATED_TERMS', '1'))
+        self.daily_limit = daily_limit or int(os.getenv('DAILY_LIMIT_PER_KEY', '60'))
+        
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        self.max_retries = max_retries
-        self.max_concurrent = max_concurrent
-        self.semaphore = asyncio.Semaphore(max_concurrent)
+        self.semaphore = asyncio.Semaphore(self.max_concurrent)
         
         # Initialize API key cluster
         self.api_cluster = APIKeyCluster.from_env(
-            daily_limit=daily_limit,
-            rate_limit=requests_per_minute
+            daily_limit=self.daily_limit,
+            rate_limit=self.requests_per_minute
         )
         
         # Initialize validator if needed
         self.validator = None
-        if validate_results:
+        if self.validate_results:
             self.validator = AcronymValidator(
-                min_description_length=min_description_length,
-                min_related_terms=min_related_terms
+                min_description_length=self.min_description_length,
+                min_related_terms=self.min_related_terms
             )
         
         # Initialize statistics
@@ -88,6 +100,8 @@ class AsyncGeminiAcronymProcessor:
         }
         
         logger.info(f"Initialized AsyncGeminiAcronymProcessor with {len(self.api_cluster.keys)} API keys")
+        logger.info(f"Configuration: max_retries={self.max_retries}, requests_per_minute={self.requests_per_minute}, "
+                   f"max_concurrent={self.max_concurrent}, validate_results={self.validate_results}")
     
     async def process_acronym(self, acronym: str) -> Dict[str, Optional[Dict]]:
         """
@@ -129,7 +143,7 @@ class AsyncGeminiAcronymProcessor:
                     
                     # Configure Gemini
                     genai.configure(api_key=api_key)
-                    model = genai.GenerativeModel('gemini-pro')
+                    model = genai.GenerativeModel('gemini-1.0-pro')
                     
                     # Generate prompt
                     prompt = f"""
@@ -155,7 +169,7 @@ class AsyncGeminiAcronymProcessor:
                     # Parse response
                     result = json.loads(response.text)
                     result["processed_at"] = datetime.now().isoformat()
-                    result["api_key_index"] = list(self.api_cluster.keys.keys()).index(api_key)
+                    result["api_key"] = api_key[:8] + "..."  # Only show first 8 chars for security
                     result["attempt"] = attempt + 1
                     
                     # Clean and validate result
@@ -198,41 +212,30 @@ class AsyncGeminiAcronymProcessor:
                     if "retry_delay" in error_str:
                         try:
                             retry_after = int(error_str.split("seconds")[0].split()[-1])
-                        except:
+                        except (ValueError, IndexError):
                             pass
                     
-                    # Mark error for the API key
+                    # Mark error in API key cluster
                     self.api_cluster.mark_error(api_key, e, retry_after)
                     
-                    if attempt < self.max_retries - 1:
-                        # Use exponential backoff with jitter
-                        wait_time = min(30, 2 ** attempt + random.random())
-                        logger.info(f"Waiting {wait_time:.1f} seconds before retry...")
-                        await asyncio.sleep(wait_time)
-                        continue
+                    if attempt == self.max_retries - 1:
+                        self.stats["failed"] += 1
+                        return {
+                            "success": False,
+                            "acronym": acronym,
+                            "error": error_str,
+                            "attempt": attempt + 1
+                        }
                     
-                    # Save error information
-                    error_info = {
-                        "acronym": acronym,
-                        "error": str(e),
-                        "attempt": attempt + 1,
-                        "timestamp": datetime.now().isoformat()
-                    }
-                    
-                    with open(error_file, 'w') as f:
-                        json.dump(error_info, f, indent=2)
-                    
-                    self.stats["failed"] += 1
-                    return {
-                        "success": False,
-                        "acronym": acronym,
-                        "error": str(e),
-                        "attempt": attempt + 1
-                    }
+                    # Wait before retrying
+                    wait_time = (2 ** attempt) * float(os.getenv('RETRY_DELAY', '2'))
+                    if retry_after:
+                        wait_time = max(wait_time, retry_after)
+                    await asyncio.sleep(wait_time)
     
-    async def process_acronyms(self, acronyms: List[str]) -> List[Dict[str, Optional[Dict]]]:
+    async def process_batch(self, acronyms: List[str]) -> List[Dict]:
         """
-        Process a list of acronyms concurrently.
+        Process a batch of acronyms concurrently.
         
         Args:
             acronyms: List of acronyms to process
@@ -241,47 +244,31 @@ class AsyncGeminiAcronymProcessor:
             List of processing results
         """
         tasks = []
-        with tqdm(total=len(acronyms), desc="Processing acronyms") as pbar:
-            for acronym in acronyms:
-                task = asyncio.create_task(self.process_acronym(acronym))
-                task.add_done_callback(lambda _: pbar.update(1))
-                tasks.append(task)
-            
-            results = await asyncio.gather(*tasks)
+        for acronym in acronyms:
+            task = asyncio.create_task(self.process_acronym(acronym))
+            tasks.append(task)
+        
+        results = await asyncio.gather(*tasks)
         
         # Print summary
-        print("\nProcessing Summary:")
-        print(f"Total acronyms: {self.stats['total']}")
-        print(f"Successful: {self.stats['success']}")
-        print(f"Failed: {self.stats['failed']}")
+        logger.info("\nProcessing Summary:")
+        logger.info(f"Total acronyms processed: {self.stats['total']}")
+        logger.info(f"Successful: {self.stats['success']}")
+        logger.info(f"Failed: {self.stats['failed']}")
         
-        if self.validator:
-            print("\nValidation Summary:")
-            print(f"Total results: {self.stats['validation']['total']}")
-            print(f"Valid results: {self.stats['validation']['valid']}")
-            print(f"Invalid results: {self.stats['validation']['invalid']}")
-            print("Error breakdown:")
+        if self.validate_results:
+            logger.info("\nValidation Summary:")
+            logger.info(f"Total validated: {self.stats['validation']['total']}")
+            logger.info(f"Valid: {self.stats['validation']['valid']}")
+            logger.info(f"Invalid: {self.stats['validation']['invalid']}")
+            logger.info("\nValidation Errors:")
             for error_type, count in self.stats['validation']['errors'].items():
-                print(f"  {error_type}: {count}")
+                logger.info(f"{error_type}: {count}")
         
-        # Print API key cluster health status
-        health_status = self.api_cluster.get_health_status()
-        print("\nAPI Key Cluster Health:")
-        print(f"Total keys: {health_status['total_keys']}")
-        print(f"Active keys: {health_status['active_keys']}")
-        print(f"Quota limited keys: {health_status['quota_limited_keys']}")
-        print(f"Daily limited keys: {health_status['daily_limited_keys']}")
-        print(f"Minimum wait time: {health_status['min_wait_time']:.2f} seconds")
-        
-        print("\nAPI Key Usage:")
-        for key, stats in health_status['keys'].items():
-            print(f"\nKey {key[:8]}...:")
-            print(f"  Requests today: {stats['requests_today']}/{stats['daily_limit']}")
-            print(f"  Rate limit: {stats['rate_limit']} requests/minute")
-            print(f"  Status: {'Active' if stats['is_active'] else 'Inactive'}")
-            if stats['error_count'] > 0:
-                print(f"  Errors: {stats['error_count']}")
-            if stats['quota_reset_time']:
-                print(f"  Quota reset: {stats['quota_reset_time']}")
+        # Print API key usage summary
+        key_stats = self.api_cluster.get_key_stats()
+        logger.info("\nAPI Key Usage Summary:")
+        for key, stats in key_stats.items():
+            logger.info(f"API Key {key[:8]}...: {stats['requests_today']} requests today, {stats['error_count']} errors")
         
         return results 

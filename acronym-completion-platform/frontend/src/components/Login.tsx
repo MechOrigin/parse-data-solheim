@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 interface LoginProps {
-  onLogin: (token: string) => void;
+  onLogin: (username: string, password: string) => Promise<void>;
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
@@ -14,23 +14,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setError('');
     
     try {
-      const response = await fetch('http://localhost:8000/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          username,
-          password,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Login failed');
-      }
-
-      const data = await response.json();
-      onLogin(data.access_token);
+      await onLogin(username, password);
     } catch (err) {
       setError('Invalid username or password');
     }

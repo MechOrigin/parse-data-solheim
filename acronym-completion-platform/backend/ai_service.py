@@ -26,7 +26,7 @@ class AIService:
         
         print(f"Using initial Gemini API key: {self.current_key[:10]}...")
         genai.configure(api_key=self.current_key)
-        self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        self.model = genai.GenerativeModel('gemini-1.0-pro')
         
         # Cache for storing results
         self.cache = {}
@@ -48,21 +48,18 @@ class AIService:
         if self.config and hasattr(self.config, 'rate_limiting'):
             rate_config = self.config.rate_limiting
             if rate_config["enabled"]:
-                # Convert requests per minute to requests per second
-                requests_per_second = rate_config["requests_per_minute"] / 60
-                burst_size = rate_config.get("burst_size", 5)  # Increased default burst size
-                max_retries = rate_config.get("max_retries", 5)  # Increased default retries
-                self.rate_limiter = RateLimiter(
-                    rate=requests_per_second,
-                    burst=burst_size,
-                    max_retries=max_retries
-                )
+                # Convert requests per minute to tokens per second
+                rate = rate_config["requests_per_minute"] / 60.0
+                burst = rate_config["burst_size"]
+                max_retries = rate_config["max_retries"]
+                self.rate_limiter = RateLimiter(rate=rate, burst=burst, max_retries=max_retries)
+                print(f"Updated rate limiter: {rate:.2f} requests/sec, burst={burst}, max_retries={max_retries}")
             else:
-                # If rate limiting is disabled, create a dummy rate limiter that doesn't limit
-                self.rate_limiter = RateLimiter(rate=1000, burst=1000, max_retries=0)
+                self.rate_limiter = None
         else:
-            # Default rate limiter if no config is provided - more lenient defaults
-            self.rate_limiter = RateLimiter(rate=1.0, burst=5, max_retries=5)  # 1 request per second, burst of 5
+            # Default to 60 requests per minute if no config
+            self.rate_limiter = RateLimiter(rate=1.0, burst=10, max_retries=3)
+            print("Using default rate limiter: 1.0 requests/sec, burst=10, max_retries=3")
     
     def _is_cache_valid(self, cache_key):
         """Check if a cached item is still valid based on TTL"""
@@ -90,6 +87,9 @@ class AIService:
                 max_retries = 3
             
         print(f"Making API call with max_retries={max_retries}")
+        
+        # Track which keys we've tried to avoid infinite loops
+        tried_keys = set()
             
         for attempt in range(max_retries):
             try:
@@ -99,13 +99,26 @@ class AIService:
                         self.current_key = self.api_key_manager.get_available_key()
                         if not self.current_key:
                             raise Exception("No available API keys")
+                        
+                        # If we've tried all keys, reset the quota for the least recently used key
+                        if self.current_key in tried_keys and len(tried_keys) >= self.api_key_manager.get_key_count():
+                            least_recent_key = min(self.api_key_manager.api_keys, 
+                                                 key=lambda k: self.api_key_manager.key_last_used[k])
+                            print(f"All keys tried, resetting quota for key: {least_recent_key[:10]}...")
+                            self.api_key_manager.key_quota_reset[least_recent_key] = 0
+                            self.current_key = least_recent_key
+                            tried_keys.clear()  # Reset tried keys
+                        
                         print(f"Switching to API key: {self.current_key[:10]}...")
                         print(f"Current key usage: {self.api_key_manager.key_usage[self.current_key]}")
                         print(f"Current key errors: {self.api_key_manager.key_errors[self.current_key]}")
                         genai.configure(api_key=self.current_key)
-                        self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
+                        self.model = genai.GenerativeModel('gemini-1.0-pro')
                     
-                    response = await self.model.generate_content_async(prompt)
+                    # Add current key to tried keys
+                    tried_keys.add(self.current_key)
+                    
+                    response = self.model.generate_content(prompt)
                     # Reset error count on success
                     self.api_key_manager.reset_key_errors(self.current_key)
                     print(f"Successful API call with key: {self.current_key[:10]}...")
@@ -158,7 +171,8 @@ Acronym: {acronym}
 Respond with just the definition, no additional text or formatting."""
 
         try:
-            definition = await self._make_api_call(prompt)
+            response = self.model.generate_content(prompt)
+            definition = response.text
             if definition:
                 definition = definition.strip()
                 # Cache the result
@@ -200,7 +214,8 @@ Respond in JSON format:
 }}"""
 
         try:
-            response_text = await self._make_api_call(prompt)
+            response = self.model.generate_content(prompt)
+            response_text = response.text
             if response_text:
                 # Extract JSON from response
                 try:

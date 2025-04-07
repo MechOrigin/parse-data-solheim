@@ -103,8 +103,6 @@ async def test_process_files(test_client, mock_csv_data):
     # Create mock AI service instances
     mock_gemini = MagicMock()
     mock_gemini.get_definition = AsyncMock(return_value="Gemini definition")
-    mock_grok = MagicMock()
-    mock_grok.get_definition = AsyncMock(return_value="Grok definition")
 
     # Create mock processing config
     mock_config = MagicMock()
@@ -112,7 +110,6 @@ async def test_process_files(test_client, mock_csv_data):
 
     # Mock the AI service instances and config
     with patch("main.gemini_service", mock_gemini), \
-         patch("main.grok_service", mock_grok), \
          patch("main.processing_config", mock_config):
 
         response = test_client.post("/process", files=files)

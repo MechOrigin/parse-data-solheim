@@ -6,6 +6,14 @@ from pathlib import Path
 from typing import List
 from dotenv import load_dotenv
 from async_gemini_processor import AsyncGeminiAcronymProcessor
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 def load_acronyms(file_path: str) -> List[str]:
     """Load acronyms from a file."""
@@ -31,37 +39,24 @@ async def main():
                         help='Minimum length for description field')
     parser.add_argument('--min-related-terms', type=int, default=1,
                         help='Minimum number of related terms')
+    parser.add_argument('--daily-limit', type=int, default=60,
+                        help='Maximum requests per day per API key')
     
     args = parser.parse_args()
     
     # Load environment variables
     load_dotenv()
     
-    # Get API keys from environment variables
-    api_keys = [
-        os.getenv('GEMINI_API_KEY_1'),
-        os.getenv('GEMINI_API_KEY_2'),
-        os.getenv('GEMINI_API_KEY_3'),
-        os.getenv('GEMINI_API_KEY_4'),
-        os.getenv('GEMINI_API_KEY_5')
-    ]
-    
-    # Filter out None values
-    api_keys = [key for key in api_keys if key]
-    
-    if not api_keys:
-        raise ValueError("No API keys found in environment variables")
-    
-    # Initialize processor
+    # Initialize processor with API key cluster
     processor = AsyncGeminiAcronymProcessor(
-        api_keys=api_keys,
         output_dir=args.output,
         max_retries=args.max_retries,
         requests_per_minute=args.requests_per_minute,
         max_concurrent=args.max_concurrent,
         validate_results=not args.no_validation,
         min_description_length=args.min_description_length,
-        min_related_terms=args.min_related_terms
+        min_related_terms=args.min_related_terms,
+        daily_limit=args.daily_limit
     )
     
     # Load acronyms from file
@@ -70,35 +65,35 @@ async def main():
         raise FileNotFoundError(f"Acronyms file not found: {acronyms_file}")
     
     acronyms = load_acronyms(str(acronyms_file))
-    print(f"Loaded {len(acronyms)} acronyms to process")
+    logger.info(f"Loaded {len(acronyms)} acronyms to process")
     
     # Process acronyms
-    results = await processor.process_batch(acronyms)
+    results = await processor.process_acronyms(acronyms)
     
     # Print summary
-    successful = sum(1 for r in results if 'error' not in r)
+    successful = sum(1 for r in results if r.get('success', False))
     failed = len(results) - successful
     
-    print("\nProcessing Summary:")
-    print(f"Total acronyms processed: {len(results)}")
-    print(f"Successful: {successful}")
-    print(f"Failed: {failed}")
-    print(f"Results saved to: {processor.results_file}")
+    logger.info("\nProcessing Summary:")
+    logger.info(f"Total acronyms processed: {len(results)}")
+    logger.info(f"Successful: {successful}")
+    logger.info(f"Failed: {failed}")
     
     # Print API key usage summary
-    print("\nAPI Key Usage Summary:")
-    for i, usage in processor.key_usage.items():
-        print(f"API Key {i+1}: {usage} requests")
+    key_stats = processor.api_cluster.get_key_stats()
+    logger.info("\nAPI Key Usage Summary:")
+    for key, stats in key_stats.items():
+        logger.info(f"API Key {key[:8]}...: {stats['requests_today']} requests today, {stats['error_count']} errors")
     
     # Print validation summary if validation is enabled
-    if processor.validate_results:
-        print("\nValidation Summary:")
-        print(f"Total results: {processor.validation_stats['total']}")
-        print(f"Valid results: {processor.validation_stats['valid']}")
-        print(f"Invalid results: {processor.validation_stats['invalid']}")
-        print("Error breakdown:")
-        for category, count in processor.validation_stats['errors'].items():
-            print(f"  {category.capitalize()}: {count}")
+    if processor.validator:
+        logger.info("\nValidation Summary:")
+        logger.info(f"Total results: {processor.stats['validation']['total']}")
+        logger.info(f"Valid results: {processor.stats['validation']['valid']}")
+        logger.info(f"Invalid results: {processor.stats['validation']['invalid']}")
+        logger.info("Error breakdown:")
+        for category, count in processor.stats['validation']['errors'].items():
+            logger.info(f"  {category.capitalize()}: {count}")
 
 if __name__ == "__main__":
     asyncio.run(main()) 

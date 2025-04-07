@@ -5,6 +5,7 @@ from typing import List, Dict, Optional
 from datetime import datetime
 import google.generativeai as genai
 from pathlib import Path
+from api_key_cluster import APIKeyCluster
 
 # Configure logging
 logging.basicConfig(
@@ -15,13 +16,13 @@ logger = logging.getLogger(__name__)
 
 class GeminiAcronymProcessor:
     """
-    A class to process acronyms using Google's Gemini API with multiple API keys
-    and rate limiting.
+    A class to process acronyms using Google's Gemini API with load balancing
+    across multiple API keys.
     """
     
     def __init__(
         self,
-        api_keys: List[str],
+        api_cluster: APIKeyCluster,
         output_dir: str = "output",
         max_retries: int = 3,
         requests_per_minute: int = 60
@@ -30,15 +31,12 @@ class GeminiAcronymProcessor:
         Initialize the GeminiAcronymProcessor.
         
         Args:
-            api_keys (List[str]): List of Gemini API keys to rotate through
+            api_cluster (APIKeyCluster): Cluster of API keys for load balancing
             output_dir (str): Directory to save results
             max_retries (int): Maximum number of retries for failed requests
             requests_per_minute (int): Maximum requests per minute per API key
         """
-        self.api_keys = api_keys
-        self.current_key_index = 0
-        self.requests_in_last_minute = 0
-        self.last_minute_timestamp = time.time()
+        self.api_cluster = api_cluster
         self.max_retries = max_retries
         self.requests_per_minute = requests_per_minute
         
@@ -50,7 +48,7 @@ class GeminiAcronymProcessor:
         self.results_file = self.output_dir / f"acronym_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         self.processed_acronyms = self._load_processed_acronyms()
         
-        logger.info(f"Initialized GeminiAcronymProcessor with {len(api_keys)} API keys")
+        logger.info(f"Initialized GeminiAcronymProcessor with API key cluster")
     
     def _load_processed_acronyms(self) -> Dict:
         """Load previously processed acronyms from results file."""
@@ -64,26 +62,6 @@ class GeminiAcronymProcessor:
         with open(self.results_file, 'w') as f:
             json.dump(results, f, indent=2)
         logger.info(f"Saved {len(results)} results to {self.results_file}")
-    
-    def get_next_api_key(self) -> str:
-        """Rotate through available API keys."""
-        key = self.api_keys[self.current_key_index]
-        self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
-        return key
-    
-    def _check_rate_limit(self):
-        """Check and handle rate limiting."""
-        current_time = time.time()
-        if current_time - self.last_minute_timestamp >= 60:
-            self.requests_in_last_minute = 0
-            self.last_minute_timestamp = current_time
-        
-        if self.requests_in_last_minute >= self.requests_per_minute:
-            wait_time = 60 - (current_time - self.last_minute_timestamp)
-            logger.info(f"Rate limit reached. Waiting {wait_time:.2f} seconds...")
-            time.sleep(wait_time)
-            self.requests_in_last_minute = 0
-            self.last_minute_timestamp = time.time()
     
     def process_acronym(self, acronym: str) -> Dict:
         """
@@ -101,10 +79,8 @@ class GeminiAcronymProcessor:
         
         for attempt in range(self.max_retries):
             try:
-                self._check_rate_limit()
-                
-                # Get next API key and configure
-                api_key = self.get_next_api_key()
+                # Get next available API key
+                api_key = self.api_cluster.get_next_key()
                 genai.configure(api_key=api_key)
                 
                 # Prepare the prompt
@@ -121,7 +97,7 @@ class GeminiAcronymProcessor:
                 """
                 
                 # Make the API call
-                model = genai.GenerativeModel('gemini-pro')
+                model = genai.GenerativeModel('gemini-1.0-pro')
                 response = model.generate_content(prompt)
                 
                 # Parse and structure the response
@@ -141,11 +117,11 @@ class GeminiAcronymProcessor:
                 result.update({
                     'acronym': acronym,
                     'processed_at': datetime.now().isoformat(),
-                    'api_key_index': self.current_key_index,
-                    'attempt': attempt + 1
+                    'api_key': api_key[:8] + '...',  # Only show first 8 chars for security
+                    'attempt': attempt + 1,
+                    'success': True
                 })
                 
-                self.requests_in_last_minute += 1
                 self.processed_acronyms[acronym] = result
                 
                 # Save after each successful processing
@@ -156,12 +132,16 @@ class GeminiAcronymProcessor:
                 
             except Exception as e:
                 logger.error(f"Error processing {acronym} (attempt {attempt + 1}): {str(e)}")
+                # Mark the API key as having an error
+                self.api_cluster.mark_error(api_key)
+                
                 if attempt == self.max_retries - 1:
                     return {
                         'acronym': acronym,
                         'error': str(e),
                         'processed_at': datetime.now().isoformat(),
-                        'attempt': attempt + 1
+                        'attempt': attempt + 1,
+                        'success': False
                     }
                 time.sleep(2 ** attempt)  # Exponential backoff
     

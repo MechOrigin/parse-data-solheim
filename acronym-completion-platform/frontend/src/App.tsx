@@ -12,46 +12,24 @@ import Login from './components/Login';
 import './styles/App.css';
 
 const AppContent: React.FC = () => {
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, login } = useAuth();
   const [settings, setSettings] = useState<SettingsState>({
-    temperature: 0.7,
-    maxTokens: 1000,
-    model: 'grok',
-    batchSize: 10,
-    autoSave: true,
-    historyLimit: 50,
-    theme: 'system',
+    geminiApiKeys: [''],
+    batchSize: 25,
     gradeFilter: {
       enabled: false,
-      min: 1,
-      max: 5
+      singleGrade: null,
+      gradeRange: null
     },
-    selectiveEnrichment: false,
     enrichment: {
       enabled: true,
       addMissingDefinitions: true,
-      generateDescriptions: true,
-      suggestTags: true,
-      useWebSearch: false,
-      useInternalKb: true
+      generateDescriptions: true
     },
-    rateLimiting: {
-      enabled: true,
-      requestsPerSecond: 0.5,
-      burstSize: 1,
-      maxRetries: 3
-    },
-    outputFormat: {
-      includeDefinitions: true,
-      includeDescriptions: true,
-      includeTags: true,
-      includeGrade: true,
-      includeMetadata: false
-    },
-    caching: {
-      enabled: true,
-      ttlSeconds: 86400
-    }
+    model: 'gemini',
+    autoSave: true,
+    historyLimit: 50,
+    theme: 'system'
   });
 
   const [templateFile, setTemplateFile] = useState<File | null>(null);
@@ -143,50 +121,61 @@ const AppContent: React.FC = () => {
   };
 
   const processAcronyms = async () => {
-    if (!templateFile || !acronymsFile) {
-      setError('Please upload both template and acronyms files');
-      return;
-    }
-
-    setIsProcessing(true);
-    setProgress(0);
-    setError(null);
-
     try {
-      const formData = new FormData();
-      formData.append('template', templateFile);
-      formData.append('acronyms', acronymsFile);
-      formData.append('settings', JSON.stringify(settings));
+      setIsProcessing(true);
+      setError(null);
+      setProgress(0);
+      setResults([]);
 
       const response = await fetch('http://localhost:8000/process', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
-        body: formData,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to process acronyms');
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to process acronyms');
       }
 
       const data = await response.json();
-      const processedResults: Result[] = data.results.map((result: any) => ({
-        id: result.id || crypto.randomUUID(),
+      
+      // Check for API key issues or quota exhaustion
+      const apiKeyIssue = data.results.find((r: any) => r.acronym === 'API_KEY_ISSUES');
+      const quotaExhausted = data.results.find((r: any) => r.acronym === 'QUOTA_EXHAUSTED');
+      
+      if (apiKeyIssue) {
+        setError('API key issues detected. Some acronyms may not have been processed correctly. Please check your API keys.');
+        // Filter out the API_KEY_ISSUES entry from results
+        data.results = data.results.filter((r: any) => r.acronym !== 'API_KEY_ISSUES');
+      } else if (quotaExhausted) {
+        setError('API quota has been exhausted. Some acronyms were not processed. Please try again later.');
+        // Filter out the QUOTA_EXHAUSTED entry from results
+        data.results = data.results.filter((r: any) => r.acronym !== 'QUOTA_EXHAUSTED');
+      }
+
+      // Update progress based on processed count
+      if (data.processed_count && data.total_count) {
+        const progressPercent = (data.processed_count / data.total_count) * 100;
+        setProgress(progressPercent);
+      }
+
+      // Process results
+      const processedResults = data.results.map((result: any) => ({
         acronym: result.acronym,
         definition: result.definition,
-        description: result.description || '',
-        tags: result.tags || [],
-        grade: result.grade || 1,
-        metadata: result.metadata || {}
+        enrichment: result.enrichment ? {
+          description: result.enrichment.description,
+          tags: result.enrichment.tags
+        } : null
       }));
 
       setResults(processedResults);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : 'An error occurred while processing acronyms');
     } finally {
       setIsProcessing(false);
-      setProgress(100);
     }
   };
 
@@ -271,7 +260,7 @@ const AppContent: React.FC = () => {
   };
 
   if (!isAuthenticated) {
-    return <Login />;
+    return <Login onLogin={login} />;
   }
 
   return (
@@ -318,7 +307,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <AppContent />
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
     </AuthProvider>
   );
 };

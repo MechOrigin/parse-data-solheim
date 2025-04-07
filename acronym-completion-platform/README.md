@@ -6,6 +6,7 @@ A web platform that automatically enriches acronym datasets with definitions, de
 
 - Upload CSV templates and acronym datasets
 - Automatic enrichment using Grok API (primary) and Gemini API (fallback)
+- Uses the free unlimited Gemini 1.0 Pro model for AI processing
 - Export enriched data in CSV format
 - Modern UI with Next.js and TailwindCSS
 - FastAPI backend with robust error handling
@@ -16,7 +17,7 @@ A web platform that automatically enriches acronym datasets with definitions, de
 - **Backend**: FastAPI (Python)
 - **AI Services**: 
   - Grok API (primary)
-  - Gemini API (fallback)
+  - Gemini API (fallback) - Using the free unlimited Gemini 1.0 Pro model
 - **File Handling**: pandas + FastAPI
 
 ## Setup
@@ -36,10 +37,16 @@ A web platform that automatically enriches acronym datasets with definitions, de
    ```
 
 3. Set up environment variables:
-   Create a `.env` file in the backend directory with:
-   ```
-   GEMINI_API_KEY=your_gemini_api_key
+   Create a `.env` file in the root directory with the following variables:
+   ```env
+   GEMINI_API_KEY_1=AIzaSyCZqWALaH7rxtl55oPps8njy6rG4SJRllo
+   GEMINI_API_KEY_2=AIzaSyCEoUdTaxCqi4NZnLKwzPUOTnKitFBp53s
+   GEMINI_API_KEY_3=AIzaSyBde09qqU4WrwVCjADP7CTskOBY6quPW-4
+   GEMINI_API_KEY_4=AIzaSyBdB3wmrVQYH2BGmQwj25gExBrQuw_tgGA
+   GEMINI_API_KEY_5=AIzaSyCUMBnz6aEjrMKmzKsUquIAstbOTV3iLq5
    GROK_API_KEY=your_grok_api_key
+   NEXT_PUBLIC_API_URL=http://localhost:8000
+   SECRET_KEY=your_secret_key
    ```
 
 4. Start the servers:
@@ -91,7 +98,7 @@ The system will automatically distribute requests across available API keys and 
 
 The platform uses a dual-AI approach:
 1. **Grok API** (Primary): Used as the main AI service for acronym enrichment
-2. **Gemini API** (Fallback): Automatically used if Grok API fails
+2. **Gemini API** (Fallback): Automatically used if Grok API fails, utilizing the free unlimited Gemini 1.0 Pro model
 
 Both services use the same prompt template and return consistent JSON responses.
 

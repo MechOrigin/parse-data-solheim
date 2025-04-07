@@ -76,7 +76,6 @@ async def async_client() -> AsyncGenerator:
 def mock_env_vars(monkeypatch):
     """Mock environment variables for testing."""
     monkeypatch.setenv("GOOGLE_API_KEY", "test_api_key")
-    monkeypatch.setenv("GROK_API_KEY", "test_grok_key")
 
 @pytest.fixture
 def mock_csv_data():

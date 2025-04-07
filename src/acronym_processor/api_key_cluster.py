@@ -1,9 +1,10 @@
 import os
 import time
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(
@@ -48,21 +49,29 @@ class APIKeyCluster:
         }
         self.current_key_index = 0
         self.last_reset_time = datetime.now()
-        self.min_wait_time = 1.0  # Minimum wait time between requests in seconds
+        self.min_wait_time = float(os.getenv('RETRY_DELAY', '1.0'))  # Minimum wait time between requests in seconds
         
         logger.info(f"Initialized APIKeyCluster with {len(keys)} keys")
         logger.info(f"Daily limit: {daily_limit}, Rate limit: {rate_limit}")
         
     @classmethod
-    def from_env(cls, prefix: str = "GEMINI_API_KEY_", daily_limit: int = 60, rate_limit: int = 60) -> 'APIKeyCluster':
+    def from_env(cls, prefix: str = "GEMINI_API_KEY_", daily_limit: Optional[int] = None, rate_limit: Optional[int] = None) -> 'APIKeyCluster':
         """
         Create an API key cluster from environment variables.
         
         Args:
             prefix: Prefix for environment variable names
-            daily_limit: Maximum requests per day per key
-            rate_limit: Maximum requests per minute per key
+            daily_limit: Maximum requests per day per key (overrides env var)
+            rate_limit: Maximum requests per minute per key (overrides env var)
         """
+        # Load environment variables
+        load_dotenv()
+        
+        # Get configuration from environment variables
+        daily_limit = daily_limit or int(os.getenv('DAILY_LIMIT_PER_KEY', '60'))
+        rate_limit = rate_limit or int(os.getenv('RATE_LIMIT_PER_KEY', '60'))
+        
+        # Get API keys
         keys = []
         i = 1
         while True:
@@ -165,7 +174,8 @@ class APIKeyCluster:
                     logger.warning(f"API key {key[:8]}... quota exceeded. Reset in 60 seconds")
             
             # Deactivate key if it has too many consecutive errors
-            if stats.consecutive_errors >= 3:
+            max_retries = int(os.getenv('MAX_RETRIES', '3'))
+            if stats.consecutive_errors >= max_retries:
                 stats.is_active = False
                 logger.warning(f"Deactivated API key {key[:8]}... due to {stats.consecutive_errors} consecutive errors")
             
@@ -199,14 +209,11 @@ class APIKeyCluster:
         return {
             key: {
                 "requests_today": stats.requests_today,
-                "daily_limit": stats.daily_limit,
-                "rate_limit": stats.rate_limit,
-                "is_active": stats.is_active,
                 "error_count": stats.error_count,
+                "is_active": stats.is_active,
                 "consecutive_errors": stats.consecutive_errors,
-                "last_error_time": stats.last_error_time.isoformat() if stats.last_error_time else None,
-                "quota_reset_time": stats.quota_reset_time.isoformat() if stats.quota_reset_time else None,
-                "last_successful_request": stats.last_successful_request.isoformat() if stats.last_successful_request else None
+                "last_successful_request": stats.last_successful_request.isoformat() if stats.last_successful_request else None,
+                "quota_reset_time": stats.quota_reset_time.isoformat() if stats.quota_reset_time else None
             }
             for key, stats in self.keys.items()
         }

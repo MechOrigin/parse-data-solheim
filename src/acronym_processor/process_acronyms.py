@@ -4,6 +4,15 @@ from pathlib import Path
 from typing import List
 from dotenv import load_dotenv
 from gemini_processor import GeminiAcronymProcessor
+from api_key_cluster import APIKeyCluster
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 def load_acronyms(file_path: str) -> List[str]:
     """Load acronyms from a file."""
@@ -14,24 +23,17 @@ def main():
     # Load environment variables
     load_dotenv()
     
-    # Get API keys from environment variables
-    api_keys = [
-        os.getenv('GEMINI_API_KEY_1'),
-        os.getenv('GEMINI_API_KEY_2'),
-        os.getenv('GEMINI_API_KEY_3'),
-        os.getenv('GEMINI_API_KEY_4'),
-        os.getenv('GEMINI_API_KEY_5')
-    ]
-    
-    # Filter out None values
-    api_keys = [key for key in api_keys if key]
-    
-    if not api_keys:
-        raise ValueError("No API keys found in environment variables")
+    # Initialize API key cluster for load balancing
+    api_cluster = APIKeyCluster.from_env(
+        prefix="GEMINI_API_KEY_",
+        daily_limit=60,
+        rate_limit=60
+    )
+    logger.info(f"Initialized API key cluster with {len(api_cluster.keys)} keys")
     
     # Initialize processor
     processor = GeminiAcronymProcessor(
-        api_keys=api_keys,
+        api_cluster=api_cluster,
         output_dir="output/acronyms",
         max_retries=3,
         requests_per_minute=60
@@ -43,20 +45,25 @@ def main():
         raise FileNotFoundError(f"Acronyms file not found: {acronyms_file}")
     
     acronyms = load_acronyms(str(acronyms_file))
-    print(f"Loaded {len(acronyms)} acronyms to process")
+    logger.info(f"Loaded {len(acronyms)} acronyms to process")
     
     # Process acronyms
     results = processor.process_batch(acronyms)
     
     # Print summary
-    successful = sum(1 for r in results if 'error' not in r)
+    successful = sum(1 for r in results if r.get('success', False))
     failed = len(results) - successful
     
-    print("\nProcessing Summary:")
-    print(f"Total acronyms processed: {len(results)}")
-    print(f"Successful: {successful}")
-    print(f"Failed: {failed}")
-    print(f"Results saved to: {processor.results_file}")
+    logger.info("\nProcessing Summary:")
+    logger.info(f"Total acronyms processed: {len(results)}")
+    logger.info(f"Successful: {successful}")
+    logger.info(f"Failed: {failed}")
+    
+    # Print API key usage summary
+    key_stats = api_cluster.get_key_stats()
+    logger.info("\nAPI Key Usage Summary:")
+    for key, stats in key_stats.items():
+        logger.info(f"API Key {key[:8]}...: {stats['requests_today']} requests today, {stats['error_count']} errors")
 
 if __name__ == "__main__":
     main() 

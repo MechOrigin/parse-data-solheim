@@ -28,5 +28,21 @@ async def main():
         if api_key:
             await test_api_key(api_key)
 
+def test_api_key_loading():
+    # Test environment variables
+    os.environ["GEMINI_API_KEY_1"] = "test_key_1"
+    os.environ["GEMINI_API_KEY_2"] = "test_key_2"
+    os.environ["GEMINI_API_KEY_3"] = "test_key_3"
+    os.environ["GEMINI_API_KEY_4"] = "test_key_4"
+    os.environ["GEMINI_API_KEY_5"] = "test_key_5"
+    
+    api_key_manager = APIKeyManager()
+    assert len(api_key_manager.api_keys) == 5
+    assert "test_key_1" in api_key_manager.api_keys
+    assert "test_key_2" in api_key_manager.api_keys
+    assert "test_key_3" in api_key_manager.api_keys
+    assert "test_key_4" in api_key_manager.api_keys
+    assert "test_key_5" in api_key_manager.api_keys
+
 if __name__ == "__main__":
     asyncio.run(main()) 
